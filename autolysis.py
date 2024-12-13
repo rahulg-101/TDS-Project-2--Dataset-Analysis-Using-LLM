@@ -659,7 +659,7 @@ def main(csv_file):
         1. Narrate a compelling story about the data 
         2. Highlights key insights
         3. Provides actionable recommendations
-        4. Properly add inferences about visualizations and leverage the visual analysis retrieved to reference the visualizations
+        4. Properly add inferences about visualizations and leverage the visual analysis retrieved to reference the {main_viz_files} visualizations
         4. Don't forget to add {main_viz_files} using file_name.png into README.md 
         5. Also Add any extra generated visualizations from paths {png_files} using file_name.png in your README.md file
         6. Include generated code for analysis and how it is suitable 
