@@ -13,7 +13,17 @@ from dotenv import load_dotenv
 load_dotenv()
 
 def llm_req(message, functions=None, stream=False):
-    """Function to call LLM and retrieve response using the request method and AIPROXY TOKEN"""
+    """
+    Function to call LLM and retrieve response using the request method and AIPROXY TOKEN.
+
+    Parameters:
+    message (list): A list of dictionaries representing the messages to be sent to the LLM.
+    functions (list, optional): A list of dictionaries representing the functions to be called by the LLM. Defaults to None.
+    stream (bool, optional): A boolean indicating whether the response should be streamed. Defaults to False.
+
+    Returns:
+    dict: A dictionary representing the response from the LLM. If an error occurs during the request, returns None.
+    """
     try:
         headers = {
             "Content-Type": "application/json",
@@ -42,8 +52,17 @@ def llm_req(message, functions=None, stream=False):
         return None
 
 
+
 def get_basic_info(df):
-    """Captures basic information and stats about your dataset"""
+    """
+    Captures basic information and stats about your dataset
+    
+    Parameters:
+    df (pandas.DataFrame): The dataset to analyze.
+
+    Returns:
+    dict: A dictionary containing basic information and stats about the dataset.
+    """
     try:
         info = {
             'Number of rows': len(df),
@@ -76,6 +95,12 @@ def get_basic_info(df):
 def get_sample_values(df):
     """
     This function returns a dictionary with sample values from each column in the DataFrame.
+
+    Parameters:
+    df (pandas.DataFrame): The dataset to analyze.
+
+    Returns:
+    dict: A dictionary with sample values from each column in the DataFrame.
     """
     try:
         # Taking sample of 10 values or count of values present in the series, whichever is the minimum
@@ -137,7 +162,16 @@ def correlation_heatmap(df):
     
 
 def plot_group(df, cols, group_num):
-    """Create distribution plot for a group of columns using subplot"""
+    """Create distribution plot for a group of columns using subplot
+    
+    Parameters:
+    df (pandas.DataFrame): The dataset to analyze.
+    cols (list): List of column names to create distribution plots for.
+    group_num (int): The number to identify the group of plots.
+
+    Returns:
+    str: The path of the saved combined distribution plot. Returns None if an error occurs.
+    """
     try:
         plt.figure(figsize=(15, 10))
         for i, col in enumerate(cols):  
@@ -161,6 +195,13 @@ def combine_plots(image_paths, output_path='distributions.png'):
     Combine multiple plots into a single figure
     Calculate number of rows for subplots
     If the number of plots is less than 3, create a single subplot instead of a grid
+
+    Parameters:
+    image_paths (list): List of paths to the images to be combined.
+    output_path (str): The path where the combined image will be saved. Defaults to 'distributions.png'.
+
+    Returns:
+    str: The path of the saved combined image. Returns None if an error occurs.
     """
     try:
         if not image_paths:
@@ -203,43 +244,79 @@ def combine_plots(image_paths, output_path='distributions.png'):
         print(f"Error in combine_plots: {e}")
         return None
 
+def dynamic_analysis(df):
+    """
+    Analyzes the dataset to determine if full distribution plotting should be done
+    based on dataset size and complexity.
+
+    Parameters:
+    df (pandas.DataFrame): The dataset to analyze.
+
+    Returns:
+    bool: True if full plotting should be done, False if limited plotting is advised.
+    """
+    try:
+        num_rows = len(df)
+        numeric_cols = df.select_dtypes(include=[np.number]).columns
+        if num_rows > 3000 or len(numeric_cols) > 10:
+            return False
+        return True
+    
+    except Exception as e:
+        print(f"Error in dynamic_analysis: {e}")
+        return False
+
+
 def distribution_plots(df):
-    """Create distribution plots for numeric columns"""
+    """
+    Creates distribution plots for numeric columns, with behavior determined by dynamic_analysis.
+
+    Parameters:
+    df (pandas.DataFrame): The dataset to analyze.
+
+    Returns:
+    str: Path of the saved combined distribution plot or None if an error occurs.
+    """
     try:
         numeric_cols = df.select_dtypes(include=[np.number]).columns
         if len(numeric_cols) == 0:
             return None
 
-        col_groups = [numeric_cols[i:i+3] for i in range(0, len(numeric_cols), 3)]      # Creating groups of 3 of columns
-
-
-        # Create plot for each group
+        # Group numeric columns in batches of 3 for plotting
+        col_groups = [numeric_cols[i:i + 3] for i in range(0, len(numeric_cols), 3)]
+        
+        # Check if full plotting is advised
+        full_plotting = dynamic_analysis(df)
         plot_paths = []
-        for i, cols in enumerate(col_groups):
-            if get_basic_info(df)['Number of rows'] > 3000 or get_basic_info(df)['Number of columns'] > 10:
-                plot_path = plot_group(df, cols, i)
-                plot_paths.append(plot_path)
-                break
 
-            else:
-                plot_path = plot_group(df, cols, i)
-                plot_paths.append(plot_path)
+        if full_plotting:
+            # Create distribution plots for all columns
+            for i, group_cols in enumerate(col_groups):
+                plot_path = plot_group(df, group_cols, i)
+                if plot_path:   
+                    plot_paths.append(plot_path)
+        else:
+            # Just plot the first group if full plotting is not advised
+            if col_groups:
+                plot_path = plot_group(df, col_groups[0], 0)
+                if plot_path:
+                    plot_paths.append(plot_path)
 
-        # If there exists only 1 subplot then stopping further execution of this method
+        # Handle final output
         if len(plot_paths) == 1:
-            os.rename(plot_paths[0],'distributions.png')
+            os.rename(plot_paths[0], 'distributions.png')
             return 'distributions.png'
         
         final_path = combine_plots(plot_paths)
-
+        
         return final_path
-    
+
     except Exception as e:
         print(f"Error in distribution_plots: {e}")
         return None
 
 def change_image_encoding(img):
-    """Convert images to base64 string for LLM evaluation"""
+    """Convert images to base64 string for LLM evaluation and returns them"""
     try:
         if not os.path.exists(img):
             return None
@@ -252,13 +329,25 @@ def change_image_encoding(img):
       
 
 def initial_analyse(csv_file):
-    """Perform Initial analysis of the dataset using basic stats, sample values and outliers detected(if any)"""
+    """
+    Perform initial analysis of the dataset using basic stats, sample values, and outliers detected (if any).
+    This function reads a CSV file, extracts basic statistics, sample values, and outlier information,
+    and then uses an LLM to generate a comprehensive analysis of the dataset.
+
+    Parameters:
+    csv_file (str): The path to the CSV file to be analyzed.
+
+    Returns:
+    str: A comprehensive analysis of the dataset including data overview, key patterns and relationships,
+         notable outliers or anomalies, and potential insights and implications. If an error occurs during
+         the analysis, it returns an error message.
+    """
     try:
         df = pd.read_csv(csv_file, encoding='unicode_escape')
-        
+
         basic_stats = get_basic_info(df)
         sample_values = get_sample_values(df)
-        
+
         outliers = outlier_detection(df)
 
         # Initial Prompt
@@ -271,25 +360,44 @@ def initial_analyse(csv_file):
     Sample values: {json.dumps(sample_values, indent=2)}
     Outlier : {json.dumps(outliers, indent=2)}
 
-    Provide a comprehensive analysis including:
-    1. Data overview
-    2. Key patterns and relationships
-    3. Notable outliers or anomalies
-    4. Potential insights and implications
+    Please structure your analysis with clear, actionable sections:
 
-    A Proper comprehensive theoretical analysis is needed here.
+    1. Data Overview
+       - Dataset composition and size
+       - Data quality assessment
+       - Variable types and distributions
+
+    2. Key Patterns & Relationships
+       - Primary trends in the data
+       - Notable correlations
+       - Meaningful segments or clusters
+
+    3. Anomalies & Special Cases
+       - Statistical outliers with context
+       - Unusual patterns or relationships
+       - Data quality concerns
+
+    4. Business Implications & Recommendations
+       - Key insights for stakeholders
+       - Specific action items
+       - Areas for further investigation
+
+    Focus on concrete, data-driven observations and avoid generic statements.
+    Support each finding with specific numbers or examples from the data.
+    Highlight practical implications rather than just statistical facts.
     """
         }
         analysis_response = llm_req([analysis_prompt])          # Calling LLM via requests for response
 
         if not analysis_response:
-            return "Error in generating analysis"
+            return "Error in initial analysis LLM response"
         
         return analysis_response['choices'][0]['message']['content']
-    
+
     except Exception as e:
         print(f"Error in initial_analyse: {e}")
         return "Error in analyzing data"
+
 
 
 
@@ -297,36 +405,71 @@ def generate_python_code(csv_file):
     """
     Generate python code based on basic stats, sample values and outliers detected(if any) in your dataset
     to perform various kind of analysis and create visualizations
+
+    Parameters:
+    csv_file (str): The path to the CSV file to be analyzed.
+
+    Returns:
+    str: Python code based on the analysis and visualization of the dataset. If an error occurs during the analysis, it returns an error message.
     """
     try:
         df = pd.read_csv(csv_file, encoding='unicode_escape')
-        
+
         basic_stats = get_basic_info(df)
         sample_values = get_sample_values(df)
-        
         outliers = outlier_detection(df)
 
-        # Prompt for code generation
+        num_rows = basic_stats.get('Number of rows', 0)
+        num_cols = basic_stats.get('Number of columns', 0)
+        numeric_cols = basic_stats.get('numeric_columns', [])
+        categorical_cols = basic_stats.get('categorical_columns', [])
+        
+        analysis_tasks = []
+        if any('date' in col.lower() or 'time' in col.lower() for col in df.columns):
+            analysis_tasks.append("- Includes time series analysis")
+        if len(numeric_cols) >= 2:
+            analysis_tasks.append("- Performs clustering analysis")
+        if outliers:
+            analysis_tasks.append("- Handles outliers appropriately")
+        if categorical_cols:
+            analysis_tasks.append("- Conducts categorical analysis")
+        analysis_tasks.append("- Regression analysis if there exists feature and label behavior in columns")
+
+
+        # Prepare the prompt
         code_gen_prompt = {
             "role": "user",
             "content": f"""
-            Given the following basic information about the dataset:
+            Given the following dataset information:
             Filename: {csv_file}
-            Basic stats: {pd.json_normalize(basic_stats).to_dict(orient='records')[0]}
+            Basic stats:  {pd.json_normalize(basic_stats).to_dict(orient='records')[0]}
             Sample values: {json.dumps(sample_values, indent=2)}
-            Outlier : {json.dumps(outliers, indent=2)}
+            Outliers: {json.dumps(outliers, indent=2)}
 
-            Generate python code that can be directly executed using the exec() function which do analysis that might provide deeper insights into the dataset, such as outlier detection, clustering, regression analysis, time series analysis, or feature importance analysis, also include visualization code in your output and save those charts as *.png but keep the overall code small and limited such that it don't need very high processing power or huge time to run.
-            Also do not add any additional content, not even the markdown ```python at the start, just provide pure code content and nothing else in your output
-            """}
+            Generate Python code to perform the following tasks:
+            {json.dumps({"Tasks":analysis_tasks}, indent=2)}
 
-        code_gen_response = llm_req([code_gen_prompt])          # Calling LLM via requests for response
-        
-        if not code_gen_response:
-            return "Error in generating code"
-            
+            The code should:
+            1. Be optimized for {num_rows} rows and {num_cols} columns
+            2. Include appropriate visualizations and save them as *.PNG files
+            3. Use efficient data processing methods
+            4. Include proper error handling
+            5. Be executable via the exec() method
+            6. Be concise and optimized for lower-spec systems.
+            7. While reading a csv file use : pd.read_csv(csv_file, encoding='unicode_escape') with same encoding
+            8. Do not use inplace attribute for ANY pandas operations, instead use df[col] = df[col].method(value)
+            9. Most Important, only perform either 1 or 2 analysis tasks that are listed above and not all of them, keep the usage simple and limited to libraries like pandas, numpy, seaborn, matplotlib and scikit-learn.
+
+            Do not include any markdown or explanatory text, DO NOT EVEN ADD ```python at the beginning of your response.Provide pure Python code only.
+            """
+        }
+
+        # Call LLM API
+        code_gen_response = llm_req([code_gen_prompt])
+        if not code_gen_response or 'choices' not in code_gen_response:
+            return "Error in generating_python_code() method LLM request"
         return code_gen_response['choices'][0]['message']['content']
-    
+
     except Exception as e:
         print(f"Error in generate_python_code: {e}")
         return "Error in generating code"
@@ -335,65 +478,108 @@ def generate_python_code(csv_file):
 def run_generated_code(response):
     """
     This function tries to run the python code generated by LLM via 'generate_python_code()' method
+
+    Parameters:
+    response (str): The python code generated by LLM via 'generate_python_code()' method
+    
+    Returns:
+    list: A list of images (base64 strings) generated by the executed code. If an error occurs during execution, it returns an empty list.
     """
-    # print(response)
+    print(response)
 
     try:
         exec_globals = {}
         exec(response, {}, exec_globals)            # Trying to execute code 
         print("Execution completed successfully.")
         generated_plots = exec_globals.get("generated_plots", [])
+        return generated_plots
+
+    except SyntaxError as se:
+        print(f"Syntax error in the generated code: {se}")
     except Exception as e:
         print(f"Error executing LLM-generated code: {e}")
-        generated_plots = []
-
-    return generated_plots
+    
+    return []
 
 def visual_analysis(csv_file):
     """
-    Perform visual analysis on the plots and graphs generated by converting them to base64 strings and passing it to LLM for further analysis
+    Perform visual analysis on the plots and graphs generated from the given CSV file.
+
+    This function generates correlation heatmaps and distribution plots from the data,
+    converts them to base64 strings, and passes them to a Language Model (LLM) for further analysis.
+
+    Parameters:
+    csv_file (str): The path to the CSV file to be analyzed.
+
+    Returns:
+    str: A string containing the LLM's analysis of the visualizations in Markdown format.
+         If an error occurs during the analysis, it returns an error message.
     """
-    try: 
+    try:
         df = pd.read_csv(csv_file, encoding='unicode_escape')
 
         correlation_plot = correlation_heatmap(df)
         distribution_plot = distribution_plots(df)
 
-        # Creating prompt to accomodate the type of visualizations we have and pass it to LLM
+        vision_prompt = {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": """Analyze these visualizations focussing on the following:
+                 1. Correlation Analysis
+                - Identify strongest positive and negative correlations
+                - Highlight unexpected relationships
+                 
+                2. Distribution Insights
+                - Characterize the shape and spread of distributions
+                - Note any bimodality or skewness
+                - Identify variables requiring transformation
+                 
+                3. Practical Applications
+                - Recommend specific modeling approaches
+                - Suggest feature engineering ideas
+                - Outline potential business applications
+                 
+                and provide concrete, specific observations rather than general statements in Markdown format:"""}
+            ]
+        }
 
-        if correlation_plot or distribution_plot:
-            vision_prompt = {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": "Analyze these visualizations and provide insights in Markdown format:"}
-                ]
-            }
-            
-            if correlation_plot:
-                vision_prompt["content"].append({
-                    "type": "image_url",
-                    "image_url": {
-                        "detail": "low",
-                        "url": f"data:image/png;base64,{change_image_encoding(correlation_plot)}"
-                        }
-                })
-                
-            if distribution_plot:
-                vision_prompt["content"].append({
-                    "type": "image_url",
-                    "image_url": {
-                        "detail": "low",
-                        "url": f"data:image/png;base64,{change_image_encoding(distribution_plot)}"                    
-                    }
-                })
-                
-            vision_response = llm_req([vision_prompt])          # Calling LLM via requests for response
-            vision_analysis = vision_response['choices'][0]['message']['content']
-            return vision_analysis
-    
+        if correlation_plot:
+            vision_prompt["content"].append({
+                "type": "image_url",
+                "image_url": {
+                    "detail": "low",
+                    "url": f"data:image/png;base64,{change_image_encoding(correlation_plot)}"
+                }
+            })
+
+        if distribution_plot:
+            vision_prompt["content"].append({
+                "type": "image_url",
+                "image_url": {
+                    "detail": "low",
+                    "url": f"data:image/png;base64,{change_image_encoding(distribution_plot)}"
+                }
+            })
+
+        vision_response = llm_req([vision_prompt])  # Calling LLM via requests for response
+
+        if vision_response is None:
+            raise RuntimeError("Failed to get LLM response for vision analysis.")
+        vision_analysis = vision_response['choices'][0]['message']['content']
+        
+        return vision_analysis
+
+    except ValueError as e:
+        print(f"Error: Failed to generate correlation heatmap or distribution plots. Reason: {e}")
+        return "Error: Failed to generate correlation heatmap or distribution plots."
+
+    except RuntimeError as e:
+        print(f"Error: Failed to get LLM response. Reason: {e}")
+        return "Error: Failed to get LLM response."
     except Exception as e:
-        print(f"Error in visual_analysis: {e}")
-        return "Error in visual analysis"
+        print(f"Error: An unexpected error occurred. Reason: {e}")
+        return "Error: An unexpected error occurred."
+
     
 def main(csv_file):
     """
@@ -405,24 +591,7 @@ def main(csv_file):
         if not os.path.exists(csv_file):
             print(f"Error: File '{csv_file}' does not exist")       # Check whether csv file exists or not
             return
-
-        # Prompt for final narration
-        final_prompt = """Combine the following analyses into a cohesive narrative:
-
-        Initial Analysis 
-        Visual Analysis
-        Generated Code for analysis
-
-        Create a final README.md that:
-        1. Narrate a compelling story about the data 
-        2. Highlights key insights
-        3. Provides actionable recommendations
-        4. Properly references the visualizations
-        5. Add the generated visualizations with names correlation.png and distributions.png in the file
-        6. Include generated code for analysis and how it is suitable 
-
-        Format in Markdown with clear sections and don't add ```markdown in the beginning of your output"""
-
+        
         ## Created a function object that can be passed to LLM request for function calling
         function = [
             {
@@ -469,6 +638,34 @@ def main(csv_file):
             vision_analysis=vision_analysis_result,
             generated_code_for_analysis=generated_code_result
         )
+        current_directory = os.getcwd() 
+        png_files = [] 
+        main_viz_files = []
+        # Iterate over all files in the current directory 
+        for file in os.listdir(current_directory): 
+            if file.endswith(".png") and file not in ['distributions.png','correlation.png']: 
+                png_files.append(file)
+            if file in ['distributions.png','correlation.png']:
+                main_viz_files.append(file)
+
+        # Prompt for final narration
+        final_prompt = f"""Combine the following analyses into a cohesive narrative:
+
+        Initial Analysis 
+        Visual Analysis
+        Generated Code for analysis
+
+        Create a final README.md that:
+        1. Narrate a compelling story about the data 
+        2. Highlights key insights
+        3. Provides actionable recommendations
+        4. Properly add inferences about visualizations and leverage the visual analysis retrieved to reference the visualizations
+        4. Don't forget to add {main_viz_files} using file_name.png into README.md 
+        5. Also Add any extra generated visualizations from paths {png_files} using file_name.png in your README.md file
+        6. Include generated code for analysis and how it is suitable 
+        7. Detailed conclusion 
+
+        Format in Markdown with clear sections and don't add ```markdown in the beginning of your output"""
 
         # Make the final LLM call with function calling !! 
         final_response = llm_req([
