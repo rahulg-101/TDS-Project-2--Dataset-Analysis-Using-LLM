@@ -212,11 +212,18 @@ def distribution_plots(df):
 
         col_groups = [numeric_cols[i:i+3] for i in range(0, len(numeric_cols), 3)]      # Creating groups of 3 of columns
 
+
         # Create plot for each group
         plot_paths = []
         for i, cols in enumerate(col_groups):
-            plot_path = plot_group(df, cols, i)
-            plot_paths.append(plot_path)
+            if get_basic_info(df)['Number of rows'] > 3000 or get_basic_info(df)['Number of columns'] > 10:
+                plot_path = plot_group(df, cols, i)
+                plot_paths.append(plot_path)
+                break
+
+            else:
+                plot_path = plot_group(df, cols, i)
+                plot_paths.append(plot_path)
 
         # If there exists only 1 subplot then stopping further execution of this method
         if len(plot_paths) == 1:
@@ -277,7 +284,7 @@ def initial_analyse(csv_file):
 
         if not analysis_response:
             return "Error in generating analysis"
-            
+        
         return analysis_response['choices'][0]['message']['content']
     
     except Exception as e:
