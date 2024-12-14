@@ -1,143 +1,116 @@
 # README.md
 
-## Understanding Global Happiness: Insights from the Happiness Dataset
+## Data Analysis and Insights from the Happiness Dataset
 
-### 1. Data Overview
+### 1. Introduction
+This document summarizes the analysis conducted on a dataset focused on happiness levels across different countries, based on various socio-economic factors. It combines insights from initial analysis, visual correlations, and generated code for deeper understanding and validation.
 
-The dataset titled **"happiness.csv"** reveals intricate metrics of happiness and well-being across 165 countries from 2005 to 2023. Comprising 2363 entries with 11 columns, it presents both numeric and categorical data that enable exploration of how various factors correlate with subjective well-being, measured as **Life Ladder** scores.
+### 2. Data Overview
+The dataset, consisting of **2363 rows** and **11 columns**, incorporates both numeric variables (e.g., happiness indicators) and categorical variables (e.g., country names). Notable observations from initial analysis include:
+- **Mean Life Ladder score**: approximately **5.48**
+- **Log GDP per capita**: mean of **9.4**
+- Significant missing values were noted across various numeric columns, potentially impacting the depth of the analysis.
 
-#### Numeric Variables:
-- **Year**: Data collection year (2005-2023)
-- **Life Ladder**: A subjective well-being index (1.281 to 8.019), mean ~5.48
-- **Log GDP per capita**: Economic well-being metric (5.527 to 11.676), mean ~9.40
-- **Social Support**: Perceived social network support (0.228 to 0.987)
-- **Healthy Life Expectancy at Birth**: Expected years in good health (6.72 to 74.6)
-- **Freedom to Make Life Choices**: Feelings of autonomy (0.228 to 0.985)
-- **Generosity**: Degree of altruism (-0.34 to 0.7)
-- **Perceptions of Corruption**: Country corruption perceptions (0.035 to 0.983)
-- **Positive Affect**: Frequency of positive feelings (0.179 to 0.884)
-- **Negative Affect**: Frequency of negative feelings (0.083 to 0.705)
+### 3. Visual Analysis
+Visualizations play a crucial role in understanding data relationships and distributions:
 
-The analysis also notes varying completeness across numeric columns, necessitating careful handling of missing data in future analyses.
-
-### 2. Key Patterns and Insights
-
-#### Correlation Analysis
-The correlation heatmap insightfully depicts the relationships between variables:
-
-- **Strong Positive Correlations**:
-  - **Log GDP per capita & Life Ladder (0.78)**: Suggests that economic strength bolsters happiness.
-  - **Life Ladder & Healthy Life Expectancy (0.73)**: Healthier societies report higher happiness.
-
-- **Moderate Influences**:
-  - **Freedom to Make Life Choices & Life Ladder (0.62)** and **Generosity & Life Ladder (0.43)** indicate a tendency where personal freedom and altruism correlate with well-being.
-
-- **Detractors to Happiness**:
-  - **Negative Affect & Life Ladder (-0.53)** suggests that negative feelings depress overall happiness.
-
-#### Distribution Visualizations
-Visualizations of distributions of various metrics reveal intriguing patterns:
-- **Life Ladder**: An approximately normal distribution, with most individuals reporting moderate to high satisfaction.
-- **Log GDP per Capita**: Right skewed, reflecting a few nations with significantly high GDP.
-- **Social Support**: Concentrated towards higher values, indicating general satisfaction with social support.
+#### 3.1 Correlation Analysis
+The correlation analysis revealed significant relationships between variables:
+- **Life Ladder** has a strong positive correlation (r = 0.79) with **Log GDP per capita**, signifying that wealthier nations tend to report higher happiness levels.
   
-These distributions highlight the heterogeneity of well-being experiences across populations, emphasizing the complexity of impacting individual happiness.
+![Correlation Heatmap](correlation.png)
 
-### 3. Actionable Recommendations
+#### 3.2 Distribution Insights
+Distribution plots suggested a positive skew in the **Log GDP per capita**, indicating more countries fall below the highest economic thresholds but possess varying happiness scores.
 
-- **Policy Initiatives**: Countries with thriving GDP and social support structures should invest further in these areas to bolster happiness metrics. Enhancing social safety nets can effectively improve life satisfaction.
+![Distribution Plot](distributions.png)
 
-- **Targeting Outliers**: Countries with low happiness scores (e.g., Life Ladder < 1.446) should be prioritized for interventions aimed at improving health, economic conditions, and social support.
+### 4. Key Insights
+#### 4.1 Increasing Happiness Over Time
+Data suggest a general upward trend in happiness from **2005 to 2023**, with marked improvements in median Life Ladder scores over the years.
 
-- **Encouraging Generosity**: Enhanced community initiatives aimed at fostering generosity may yield improvements in overall life satisfaction.
+#### 4.2 Socio-economic Impact
+Higher economic measures correlate positively with increased happiness, emphasizing the importance of bolstering economic performance to improve wellbeing.
 
-### 4. Visualizations
+### 5. Recommendations
+To enhance societal happiness, the following actionable recommendations are proposed:
+1. **Address Data Gaps**: Implement data imputation methods to handle missing values effectively.
+2. **Focus on Mental Well-being**: Increase investments in mental health initiatives to improve overall satisfaction.
+3. **Investigate Anomalies**: Further research should be directed toward countries that defy typical socio-economic trends in happiness.
 
-To better illustrate the findings, the following visualizations have been included:
+### 6. Additional Visualizations 
+To provide greater insight, the following visuals have been included:
 
-- **Correlation Heatmap**: ![correlation.png](correlation.png)
-  
-- **Distribution of Life Ladder and other metrics**: ![distributions.png](distributions.png)
+![Regression Analysis](regression_analysis.png)
 
-### 5. Summary of Findings
+*Illustrates the impact of socio-economic variables on predicting Life Ladder scores, aiding in understanding influential factors.*
 
-- **Influencing Factors**: Log GDP per capita and healthy life expectancy are predominant influencers of life satisfaction.
-- **Variability of Experiences**: Individual experiences of happiness and its detractors vary widely, pointing towards cultural and socio-economic distinctions across regions.
+![Silhouette Score Plot](silhouette.png)
 
-### 6. Generated Code for Analysis
+*Demonstrates clustering effectiveness, suggesting that optimal groups of countries can be identified based on Life Ladder correlations.*
 
-The code used in the analyses includes various functions and approaches that enhance understanding of the data:
+![Time Series of Life Ladder](timeseries_year_Life_Ladder.png)
+
+*Offers a temporal perspective on happiness trends, highlighting periods of significant fluctuation.*
+
+### 7. Generated Code for Further Analysis
+The following Python code was utilized for analysis, particularly for regression modeling:
 
 ```python
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
 import seaborn as sns
+import matplotlib.pyplot as plt
 from sklearn.linear_model import LinearRegression
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.cluster import KMeans
+from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import mean_squared_error, r2_score
 
-# Load dataset
-data = pd.read_csv('happiness.csv')
+csv_file = 'happiness.csv'
+df = pd.read_csv(csv_file, encoding='unicode_escape')
 
-# Outlier detection using IQR
-def detect_outliers_iqr(df, column):
-    Q1 = df[column].quantile(0.25)
-    Q3 = df[column].quantile(0.75)
-    IQR = Q3 - Q1
-    lower_bound = Q1 - 1.5 * IQR
-    upper_bound = Q3 + 1.5 * IQR
-    return df[(df[column] < lower_bound) | (df[column] > upper_bound)]
+numeric_cols = ['year', 'Life Ladder', 'Log GDP per capita', 'Social support', 
+                'Healthy life expectancy at birth', 'Freedom to make life choices', 
+                'Generosity', 'Perceptions of corruption', 'Positive affect', 'Negative affect']
+categorical_cols = ['Country name']
 
-outliers = {col: detect_outliers_iqr(data, col) for col in data.select_dtypes(include=[np.number]).columns}
+for col in numeric_cols:
+    median_value = df[col].median()
+    df[col] = df[col].fillna(median_value)
 
-# Visualization of outliers
-plt.figure(figsize=(12, 8))
-for i, column in enumerate(data.select_dtypes(include=[np.number]).columns, 1):
-    plt.subplot(4, 3, i)
-    sns.boxplot(x=data[column])
-    plt.title(column)
-plt.tight_layout()
-plt.savefig('outliers.png')
-plt.close()
+for col in categorical_cols:
+    mode_value = df[col].mode()[0]
+    df[col] = df[col].fillna(mode_value)
 
-# Clustering using KMeans
+X = df[numeric_cols[1:]]
+y = df[numeric_cols[0]]
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
 scaler = StandardScaler()
-features = ['Log GDP per capita', 'Social support', 'Healthy life expectancy at birth']
-scaled_features = scaler.fit_transform(data[features].dropna())
-kmeans = KMeans(n_clusters=3)
-data['Cluster'] = kmeans.fit_predict(scaled_features)
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
 
-# Visualization of clusters
-plt.figure(figsize=(8, 6))
-sns.scatterplot(x='Log GDP per capita', y='Social support', hue='Cluster', data=data)
-plt.title('Clusters of Countries')
-plt.savefig('clusters.png')
-plt.close()
-
-# Regression analysis
-X = data[['Log GDP per capita', 'Social support', 'Healthy life expectancy at birth']].dropna()
-y = data['Life Ladder'].loc[X.index]
 model = LinearRegression()
-model.fit(X, y)
+model.fit(X_train_scaled, y_train)
 
-# Feature importance using Random Forest
-rf = RandomForestRegressor()
-rf.fit(X, y)
-importances = rf.feature_importances_
-importance_df = pd.DataFrame({'Feature': features, 'Importance': importances}).sort_values(by='Importance', ascending=False)
+y_pred = model.predict(X_test_scaled)
 
-# Visualization of feature importance
-plt.figure(figsize=(8, 4))
-sns.barplot(x='Importance', y='Feature', data=importance_df)
-plt.title('Feature Importance')
-plt.savefig('feature_importance.png')
+mse = mean_squared_error(y_test, y_pred)
+r2 = r2_score(y_test, y_pred)
+
+plt.figure(figsize=(10, 6))
+sns.scatterplot(x=y_test, y=y_pred)
+plt.xlabel("Actual Life Ladder")
+plt.ylabel("Predicted Life Ladder")
+plt.title(f'Regression Analysis: MSE = {mse:.2f}, R² = {r2:.2f}')
+plt.savefig('regression_analysis.png')
 plt.close()
 ```
 
-This code encompasses comprehensive analysis strategies, including outlier detection, regression modeling, and visualizations, thereby enhancing the overall understanding of the patterns and implications of the happiness metrics dataset.
+### 8. Conclusion
+In conclusion, the analysis has identified meaningful patterns and potential areas for action that could enhance happiness on a global scale. By emphasizing economic wellbeing and mental health alongside proper data management, stakeholders can drive significant improvements in community satisfaction levels. Further investigations into anomalies and regional specifics could provide tailored strategies for different countries.
 
----
+--- 
 
-The narrative articulated above is designed to contextualize the key findings from the dataset, offering insights that can guide actionable policies and further areas of research in enhancing global well-being.
+This structured README.md captures the essence of the analysis, highlights actionable insights derived from visualizations, and includes code necessary for replication or further exploration.

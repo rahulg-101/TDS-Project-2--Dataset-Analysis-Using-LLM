@@ -1,99 +1,124 @@
-# Media Dataset Analysis: Insights and Recommendations
+# README.md
 
-## 1. Data Overview
-The `media.csv` dataset comprises **2,652 rows** and **8 columns**, including both numeric and categorical data types that offer a robust foundation for analysis. The numeric columns are:
-- `overall` (mean: 3.05)
-- `quality` (mean: 3.21)
-- `repeatability` (mean: 1.49)
+## Analysis of the media.csv Dataset
 
-The categorical columns include:
-- `date`: 2,055 unique release dates
-- `language`: 11 unique languages
-- `type`: 8 unique media types (primarily movies)
-- `title`: 2,312 unique titles
-- `by`: 1,528 unique contributors
+### 1. Data Overview
 
-Notably, there are **99 missing values** in the `date` column and **262 missing values** in the `by` column, which should be addressed in data preprocessing.
+#### Dataset Composition and Size
+The dataset comprises 2,652 rows and 8 columns, which includes numeric and categorical variables. The numeric columns are 'overall', 'quality', and 'repeatability'. The categorical columns include 'date', 'language', 'type', 'title', and 'by'.
 
-## 2. Key Insights
-### Distributions and Relationships
-The analysis reveals a neutral to positive perception of the media. The mean scores suggest that audiences are generally satisfied, although the low repeatability score indicates users are not inclined to revisit most media. 
+#### Data Quality Assessment
+- **Missing Values**: 
+  - There are 99 missing values in the 'date' column, and 262 missing values in the 'by' column. Other columns have no missing values. The presence of missing data in the 'date' and 'by' columns could lead to potential biases in analysis and outcomes.
+  
+- **Unique Values**: 
+  - 2055 unique dates indicate a diverse range of entries, while only 11 languages and 8 types suggest limited diversity in classification. The 'title' column also exhibits high uniqueness with 2312 titles.
 
-### Correlation Analysis
-- The correlation between `overall` and `quality` (0.83) is significant, indicating that higher quality tends to result in better overall ratings.
-- A moderate correlation exists between `overall` and `repeatability` (0.51), yet repeatability shows a weaker relationship with quality (0.31).
+#### Variable Types and Distributions
+- Numeric columns show the following statistics:
+  - **Overall Ratings**: Mean (3.05), Median (3.0), Min (1), Max (5), indicating several values may be outliers.
+  - **Quality Ratings**: Mean of 3.21, with ratings skewed toward the mid-range.
+  - **Repeatability**: Lower mean (1.49) with values predominantly clustering at the lower end (1-3).
 
-### Visual Analytics
-#### Correlation Heatmap
-- The correlation heatmap (see **correlation.png**) visually reinforces the strong positive correlation between overall and quality ratings.
+### 2. Key Patterns & Relationships
 
-#### Distribution Plots
-- The distribution plots (see **distributions.png**) indicate that overall and quality ratings reflect a bimodal distribution, suggesting categories of performance exist. 
+#### Primary Trends in the Data
+Both 'overall' and 'quality' ratings are concentrated around the value of 3, suggesting that most entries do not significantly deviate from average performance. This may indicate a high level of user satisfaction or a lack of significant differentiation among items.
 
-## 3. Actionable Recommendations
-- **Enhance Quality**: Prioritizing quality improvements can lead to a substantial increase in overall audience satisfaction, as indicated by the strong correlation.
-- **Investigate Peaks**: Further examination of the distinct peaks in distribution plots may provide insights into the characteristics of different user experiences.
+#### Notable Correlations
+A potential positive correlation exists between 'overall' and 'quality' ratings. To illustrate this correlation, we can refer to our visualization:
 
-## 4. Visualizations
-Here are the visualizations referenced in the insights:
-- **Correlation Heatmap**: 
 ![Correlation Heatmap](correlation.png)
-- **Distribution Plots**: 
-![Distribution Plots](distributions.png)
 
-## 5. Generated Code for Analysis
-Below is the generated code used for the analysis:
+The average ratings being similar suggests that stakeholders could better tailor their offerings in media quality.
+
+#### Meaningful Segments or Clusters
+The dataset has identified **14 clusters**, suggesting a diversity of contexts perhaps related to media types or audience preferences. This segmentation merits deeper investigation to enhance marketing or content curation.
+
+### 3. Visual Analysis
+
+In addition to the correlation heatmap, we also provide distribution visualizations that highlight how ratings are spread across the dataset:
+
+![Distribution Plot](distributions.png)
+
+### 4. Business Implications & Recommendations
+
+#### Key Insights for Stakeholders
+The consistent ratings hovering around 3 suggest a need for a refresh in content strategy. Stakeholders can use insights from clustering analysis to develop targeted marketing strategies based on genre preferences or language.
+
+#### Specific Action Items
+- **Address Missing Data**: Implement strategies to manage missing values, which could enhance analytical robustness. Consider enhancing data collection practices or utilizing imputation methods.
+  
+- **Explore Clusters Further**: Conduct an in-depth analysis of the identified clusters to uncover unique user trends or preferences.
+
+### 5. Additional Visualizations
+To further enhance the understanding of these insights, additional generated visualizations can be utilized:
+
+![Regression Analysis](regression_analysis.png)
+![Silhouette Score Plot](silhouette.png)
+![Time Series Overall](timeseries_date_overall.png)
+![Time Series Quality](timeseries_date_quality.png)
+
+### 6. Generated Code for Analysis
+
+The following Python code can be executed to facilitate deeper analysis on this dataset. The code includes handling missing values, outlier detection, regression analysis, and encoding categorical variables:
 
 ```python
 import pandas as pd
-import matplotlib.pyplot as plt
-from sklearn.cluster import KMeans
-from sklearn.ensemble import RandomForestRegressor
+import numpy as np
 import seaborn as sns
+import matplotlib.pyplot as plt
+from sklearn.linear_model import LinearRegression
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import OneHotEncoder
+from sklearn.metrics import mean_squared_error
+import warnings
+warnings.filterwarnings('ignore')
 
-# Load the dataset
-df = pd.read_csv('media.csv')
+# Load dataset
+csv_file = 'media.csv'
+df = pd.read_csv(csv_file, encoding='unicode_escape')
 
-# 1. Outlier detection - Visualizing overall ratings
-plt.figure(figsize=(10, 5))
-sns.boxplot(x=df['overall'])
-plt.title('Boxplot of Overall Ratings')
-plt.savefig('overall_boxplot.png')
-plt.clf()
+# Handle missing values
+for col in df.columns:
+    if df[col].dtype == 'O':
+        df[col] = df[col].fillna(df[col].mode()[0])
+    else:
+        df[col] = df[col].fillna(df[col].median())
 
-# 2. Clustering - KMeans on quality and repeatability
-X = df[['quality', 'repeatability']]
-kmeans = KMeans(n_clusters=3)
-df['Cluster'] = kmeans.fit_predict(X)
+# Handle outliers for overall
+df['overall'] = np.where(df['overall'] < 2, 2, df['overall'])
+df['overall'] = np.where(df['overall'] > 4, 4, df['overall'])
 
-plt.scatter(df['quality'], df['repeatability'], c=df['Cluster'], cmap='viridis')
-plt.title('KMeans Clustering of Quality and Repeatability')
-plt.xlabel('Quality')
-plt.ylabel('Repeatability')
-plt.savefig('kmeans_clustering.png')
-plt.clf()
+# Categorical analysis: One Hot Encoding for categorical variables
+categorical_cols = ['date', 'language', 'type', 'title', 'by']
+df_encoded = pd.get_dummies(df, columns=categorical_cols)
 
-# 3. Regression analysis - Feature importance using Random Forest
-X_reg = df[['quality', 'repeatability']]
-y = df['overall']
-model = RandomForestRegressor()
-model.fit(X_reg, y)
-importances = model.feature_importances_
+# Regression analysis
+X = df_encoded.drop(['overall'], axis=1)
+y = df_encoded['overall']
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-plt.barh(['Quality', 'Repeatability'], importances)
-plt.title('Feature Importance for Predicting Overall Ratings')
-plt.savefig('feature_importance.png')
-plt.clf()
+model = LinearRegression()
+model.fit(X_train, y_train)
+y_pred = model.predict(X_test)
 
-# 4. Time Series Analysis - Count of movies over time
-df['date'] = pd.to_datetime(df['date'], format='%d-%b-%y')
-df.set_index('date', inplace=True)
-df.resample('Y').count()['title'].plot()
-plt.title('Number of Movies Released Over Time')
-plt.xlabel('Year')
-plt.ylabel('Count of Movies')
-plt.savefig('movies_over_time.png')
+mse = mean_squared_error(y_test, y_pred)
+plt.figure(figsize=(10,6))
+sns.scatterplot(x=y_test, y=y_pred)
+plt.xlabel("True Values")
+plt.ylabel("Predictions")
+plt.title(f"Regression Analysis - MSE: {mse:.2f}")
+plt.savefig('regression_analysis.png')
+plt.close()
 ```
 
-## Conclusion
-The analysis of the media dataset reveals a predominantly positive perception of media quality, but with notable areas for improvement in engaging audiences repetitively. By focusing on quality enhancements and understanding the nuanced user experiences represented in the data, there lies significant potential for increasing overall satisfaction and viewer loyalty.
+### 7. Conclusion
+
+In conclusion, while the dataset presents a consistent narrative of user experiences with media, it underscores the potential need for targeted improvements to elevate quality and repeat usage. The analysis reveals important patterns and offers actionable insights for media stakeholders to enhance user satisfaction and content engagement.
+![regression_analysis.pn](regression_analysis.png)
+![silhouette.png](silhouette.png)
+![timeseries_date_overall.png](timeseries_date_overall.png)
+![timeseries_date_quality.png](timeseries_date_quality.png)
+The visual representations help clarify these insights, and the provided code enables further exploration and analysis of the dataset.
+

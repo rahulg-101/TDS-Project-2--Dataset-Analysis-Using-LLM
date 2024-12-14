@@ -139,7 +139,10 @@ def outlier_detection(df):
         print(f"Error in outlier_detection: {e}")
         return {}
 
-
+def return_none(series):
+    """A helper function to return None if the series is empty"""
+    if len(series) == 0:
+        return None
 
 def correlation_heatmap(df):
     """Create correlation heatmap for numeric columns and saving it as correlation.png"""
@@ -279,7 +282,7 @@ def distribution_plots(df):
     """
     try:
         numeric_cols = df.select_dtypes(include=[np.number]).columns
-        if len(numeric_cols) == 0:
+        if return_none(numeric_cols) is None:
             return None
 
         # Group numeric columns in batches of 3 for plotting
@@ -326,7 +329,183 @@ def change_image_encoding(img):
         print(f"Error in change_image_encoding: {e}")
         return None
 
-      
+
+def clustering(df):
+    """
+    Perform K-means clustering on numeric data and find optimal number of clusters
+    using silhouette score.
+    
+    Parameters:
+    df (pandas.DataFrame): Input dataframe
+    
+    Returns:
+    int: Optimal number of clusters
+    """
+
+    import seaborn as sns
+    import matplotlib.pyplot as plt
+    from sklearn.cluster import KMeans
+    from sklearn.metrics import silhouette_score
+    from sklearn.preprocessing import StandardScaler
+
+    stats = get_basic_info(df)
+
+    numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+    if return_none(numeric_cols) is None:
+        return None
+
+    # Create a copy of the numeric data
+    numeric_data = df[numeric_cols].copy()
+
+    # Handle missing values
+    for col in numeric_cols:
+        if col in stats['missing_values']:
+            numeric_data[col] = numeric_data[col].fillna(numeric_data[col].median())
+    print("Missing values handled")
+    
+    # Scale the features
+    scaler = StandardScaler()
+    scaled_features = scaler.fit_transform(numeric_data)
+    print("Scaling successfully executed")
+
+    # K-means parameters
+    kmeans_kwargs = {
+        'init': 'k-means++',
+        'n_init': 50,
+        'max_iter': 100,
+        'random_state': 0
+    }
+
+    # Calculate silhouette scores for different k values
+    sil_coef_digits = []
+    for k in range(2, 15):
+        kmeans = KMeans(n_clusters=k, **kmeans_kwargs)
+        kmeans.fit(scaled_features)
+        score = silhouette_score(scaled_features, kmeans.labels_)
+        sil_coef_digits.append(score)
+    
+    # Plot silhouette scores
+    plt.figure(figsize=(8, 5))
+    plt.plot(range(2, 15), sil_coef_digits, marker='o')
+    plt.title('Silhouette Score Method for Optimal k')
+    plt.xlabel('Number of Clusters (k)')
+    plt.ylabel('Silhouette Score')
+    plt.grid()
+    plt.savefig('silhouette.png')
+    plt.close()
+
+    # Get optimal number of clusters (add 2 because range started from 2)
+    n = sil_coef_digits.index(max(sil_coef_digits)) + 2
+    return n
+
+def time_series_analysis(df):
+    """
+    Perform time series analysis on numeric columns against time-related columns.
+    """
+
+    def test_stationarity(p_value):
+        if p_value <= 0.05:
+            return "Strong evidence against the null hypothesis; the data is stationary."
+        return "Weak evidence against the null hypothesis; the data is non-stationary."
+
+    from statsmodels.tsa.stattools import adfuller
+
+    time_series = df.copy()
+
+    # Get numeric columns
+    numeric_cols = time_series.select_dtypes(include=[np.number]).columns.tolist()
+    if return_none(numeric_cols) is None:
+        return None
+
+    # Identify potential time-related columns
+    time_indicators = ['date', 'time', 'year', 'month', 'day', 'week']
+    time_cols = [col for col in df.columns if any(indicator in col.lower() for indicator in time_indicators)]
+
+    if not time_cols:
+        raise ValueError("No time-related columns found in the dataset")
+
+    hypothesis_results = {}
+
+    for time_col in time_cols:
+        try:
+            # Convert to datetime
+            time_series[time_col] = pd.to_datetime(time_series[time_col], errors='coerce')
+
+            time_series = time_series.sort_values(time_col)
+
+            # Analyze numeric columns (limit to first 5 for efficiency)
+            if len(numeric_cols) >2:
+                nums = numeric_cols[:2]
+            else:
+                nums = numeric_cols
+            for numeric_col in nums:
+            
+                if time_series[numeric_col].isnull().all():
+                    continue
+
+                if time_series[numeric_col].equals(time_series[time_col]):
+                    continue
+
+                series_data = time_series[numeric_col].ffill().bfill()
+
+                # Create time series plot
+                plt.figure(figsize=(12, 6))
+                plt.plot(time_series[time_col],series_data)
+                plt.title(f'Time Series Analysis: {numeric_col} over {time_col}')
+                plt.xlabel(time_col)
+                plt.ylim(bottom=0)
+                plt.ylabel(numeric_col)
+                plt.grid(True)
+                
+
+                # Save plot with sanitized filename
+                safe_filename = f"timeseries_{time_col}_{numeric_col}".replace(" ","_").replace("/", "_")
+                plt.savefig(f'{safe_filename}.png')
+                plt.close()
+
+                # Perform the ADF test
+                adf_result = adfuller(series_data.dropna())
+                adf_stat, p_value, _, _, critical_values, _ = adf_result
+
+                stationarity_result = test_stationarity(p_value)
+
+                # Store the hypothesis results
+                hypothesis_results[f"{numeric_col}_{time_col}"] = {
+                    "column": numeric_col,
+                    "time_reference": time_col,
+                    "adf_statistic": float(adf_stat),
+                    "p_value": float(p_value),
+                    "stationarity_test": stationarity_result
+                }
+
+        except Exception as e:
+            print(f"Error in time series analysis for column {time_col}: {str(e)}")
+
+    return hypothesis_results
+
+def regression_analysis(df):
+    basic_stats = get_basic_info(df)
+    sample_values = get_sample_values(df)
+
+    prompt = {                                                     
+            "role": "user",
+            "content": f"""
+    Given the following dataset statistics and sample values:
+
+    Basic stats: {pd.json_normalize(basic_stats).to_dict(orient='records')[0]}
+    Sample values: {json.dumps(sample_values, indent=2)}
+    Suggest whether this dataset is applicable for regression analysis given the column names and type
+    Also provides information about the features which can be used for training and what is target variable
+    """
+        }
+    
+    reg_response = llm_req([prompt])          # Calling LLM via requests for response
+
+    if not reg_response:
+        return "Error in regression analysis LLM response"
+        
+    return reg_response['choices'][0]['message']['content']
+
 
 def initial_analyse(csv_file):
     """
@@ -349,6 +528,9 @@ def initial_analyse(csv_file):
         sample_values = get_sample_values(df)
 
         outliers = outlier_detection(df)
+        clusters = clustering(df)
+
+        hypo = time_series_analysis(df)
 
         # Initial Prompt
         analysis_prompt = {                                                     
@@ -359,6 +541,8 @@ def initial_analyse(csv_file):
     Basic stats: {pd.json_normalize(basic_stats).to_dict(orient='records')[0]}
     Sample values: {json.dumps(sample_values, indent=2)}
     Outlier : {json.dumps(outliers, indent=2)}
+    Number of clusters (if any) : {clusters}
+    Time Series Analysis with Hypothesis Testing Results (if present): {json.dumps(hypo, indent=2)}
 
     Please structure your analysis with clear, actionable sections:
 
@@ -425,15 +609,14 @@ def generate_python_code(csv_file):
         categorical_cols = basic_stats.get('categorical_columns', [])
         
         analysis_tasks = []
-        if any('date' in col.lower() or 'time' in col.lower() for col in df.columns):
-            analysis_tasks.append("- Includes time series analysis")
-        if len(numeric_cols) >= 2:
-            analysis_tasks.append("- Performs clustering analysis")
         if outliers:
             analysis_tasks.append("- Handles outliers appropriately")
         if categorical_cols:
             analysis_tasks.append("- Conducts categorical analysis")
-        analysis_tasks.append("- Regression analysis if there exists feature and label behavior in columns")
+        if numeric_cols:
+            analysis_tasks.append(f"- Performs Regression analysis based on {regression_analysis(df)}")
+            analysis_tasks.append("- Feature Importance Analysis")
+        
 
 
         # Prepare the prompt
@@ -454,11 +637,13 @@ def generate_python_code(csv_file):
             2. Include appropriate visualizations and save them as *.PNG files
             3. Use efficient data processing methods
             4. Include proper error handling
+            5. Tackle missing values in all the columns and fill NaN values with medians if columns is numeric else most frequent value if categorical
             5. Be executable via the exec() method
             6. Be concise and optimized for lower-spec systems.
             7. While reading a csv file use : pd.read_csv(csv_file, encoding='unicode_escape') with same encoding
             8. Do not use inplace attribute for ANY pandas operations, instead use df[col] = df[col].method(value)
             9. Most Important, only perform either 1 or 2 analysis tasks that are listed above and not all of them, keep the usage simple and limited to libraries like pandas, numpy, seaborn, matplotlib and scikit-learn.
+            10. Do not let concerns raise about security and efficiency of code.
 
             Do not include any markdown or explanatory text, DO NOT EVEN ADD ```python at the beginning of your response.Provide pure Python code only.
             """
@@ -485,7 +670,7 @@ def run_generated_code(response):
     Returns:
     list: A list of images (base64 strings) generated by the executed code. If an error occurs during execution, it returns an empty list.
     """
-    print(response)
+    # print(response)
 
     try:
         exec_globals = {}
@@ -521,6 +706,8 @@ def visual_analysis(csv_file):
         correlation_plot = correlation_heatmap(df)
         distribution_plot = distribution_plots(df)
 
+        vision_analysis = []
+
         vision_prompt = {
             "role": "user",
             "content": [
@@ -551,8 +738,11 @@ def visual_analysis(csv_file):
                     "url": f"data:image/png;base64,{change_image_encoding(correlation_plot)}"
                 }
             })
-
+        vision_response = llm_req([vision_prompt])  # Calling LLM via requests for response
+        vision_analysis.append(vision_response['choices'][0]['message']['content'])
         if distribution_plot:
+            if len(vision_prompt["content"]) ==2:
+                vision_prompt["content"].pop()
             vision_prompt["content"].append({
                 "type": "image_url",
                 "image_url": {
@@ -560,12 +750,32 @@ def visual_analysis(csv_file):
                     "url": f"data:image/png;base64,{change_image_encoding(distribution_plot)}"
                 }
             })
+            vision_response = llm_req([vision_prompt])  # Calling LLM via requests for response
+            vision_analysis.append(vision_response['choices'][0]['message']['content'])
 
-        vision_response = llm_req([vision_prompt])  # Calling LLM via requests for response
+        current_directory = os.getcwd()
+        png_files = []
+        for file in os.listdir(current_directory): 
+            if file.endswith(".png") and file not in ['distributions.png','correlation.png']: 
+                png_files.append(file)
+
+        if len(png_files) > 0:
+            for file in png_files:
+                if len(vision_prompt["content"]) ==2:
+                    vision_prompt["content"].pop()
+                vision_prompt["content"].append({
+                    "type": "image_url",
+                    "image_url": {
+                        "detail": "low",
+                        "url": f"data:image/png;base64,{change_image_encoding(file)}"
+                    }
+                })
+                vision_response = llm_req([vision_prompt])  # Calling LLM via requests for response
+                vision_analysis.append(vision_response['choices'][0]['message']['content'])        
 
         if vision_response is None:
             raise RuntimeError("Failed to get LLM response for vision analysis.")
-        vision_analysis = vision_response['choices'][0]['message']['content']
+               
         
         return vision_analysis
 
@@ -593,7 +803,7 @@ def main(csv_file):
             return
         
         ## Created a function object that can be passed to LLM request for function calling
-        function = [
+        function_calling = [
             {
                 "name": "final_narration",
                 "description": "Provide information on initial analysis, vision or visual analysis(if present) and Generated Code for analysis for the current dataset",
@@ -602,15 +812,15 @@ def main(csv_file):
                     "properties": {
                         "initial_analysis": {
                             "type": "string",
-                            "description": "Provide a comprehensive analysis which covers data overview,key patterns and relationships,outliers and anomalies,potential insights",
+                            "description": "Provide a comprehensive analysis which covers data overview,key patterns and relationships,outliers and anomalies,potential insights using basic statistics, sample values, other advanced analysis method like regression, time series etc",
                         },
                         "vision_analysis": {
                             "type": "string",
-                            "description": "Contains base64 string representation of annotated correlation heatmaps, distribution plots or both and maybe other related plots and graphs",
+                            "description": "Contains base64 string representation of annotated correlation heatmaps, distribution plots,silhouette score plots, timeseries plots and others along with their respective analysis information",
                         },
                         "generated_code_for_analysis": {
                             "type": "string",
-                            "description": "Includes python code that can be executed for further analysis on this dataset such as clustering, regression analysis, time series analysis etc.",
+                            "description": "Includes python code that can be executed for further analysis on this dataset such as regression analysis, feature importance analysis, outlier handling etc.",
                         },
                     },
                     "required": ["initial_analysis", "vision_analysis", "generated_code_for_analysis"],
@@ -620,27 +830,29 @@ def main(csv_file):
 
         # First, get all the analyses
         initial_analysis_result = initial_analyse(csv_file)
-        vision_analysis_result = visual_analysis(csv_file)
         generated_code_result = generate_python_code(csv_file)
+        vision_analysis_result = visual_analysis(csv_file)
         run_generated_code(generated_code_result)
 
         def final_narration(initial_analysis, vision_analysis, generated_code_for_analysis):
             analysis = {
                 "initial_analysis": initial_analysis,
-                "vision_analysis": vision_analysis,
-                "generated_code_for_analysis": generated_code_for_analysis
+                "generated_code_for_analysis": generated_code_for_analysis,
+                "vision_analysis": vision_analysis
             }
             return json.dumps(analysis)
 
         # Create a combined analysis
         combined_analysis = final_narration(
             initial_analysis=initial_analysis_result,
-            vision_analysis=vision_analysis_result,
-            generated_code_for_analysis=generated_code_result
+            generated_code_for_analysis=generated_code_result,
+            vision_analysis=vision_analysis_result
+            
         )
         current_directory = os.getcwd() 
         png_files = [] 
         main_viz_files = []
+
         # Iterate over all files in the current directory 
         for file in os.listdir(current_directory): 
             if file.endswith(".png") and file not in ['distributions.png','correlation.png']: 
@@ -661,7 +873,7 @@ def main(csv_file):
         3. Provides actionable recommendations
         4. Properly add inferences about visualizations and leverage the visual analysis retrieved to reference the {main_viz_files} visualizations
         4. Don't forget to add {main_viz_files} using file_name.png into README.md 
-        5. Also Add any extra generated visualizations from paths {png_files} using file_name.png in your README.md file
+        5. Also Add any extra generated visualizations from paths {png_files} using file_name.png in your README.md file as additional visualizations for more insights about the dataset
         6. Include generated code for analysis and how it is suitable 
         7. Detailed conclusion 
 
@@ -670,7 +882,8 @@ def main(csv_file):
         # Make the final LLM call with function calling !! 
         final_response = llm_req([
             {"role": "user", "content": final_prompt},
-            {"role": "function", "name": "final_narration", "content": combined_analysis}])        # Calling LLM via requests for response
+            {"role": "function", "name": "final_narration", "content": combined_analysis}],functions = function_calling)
+                # Calling LLM via requests for response
 
         if not final_response:
             print("Error: Failed to get final response")
