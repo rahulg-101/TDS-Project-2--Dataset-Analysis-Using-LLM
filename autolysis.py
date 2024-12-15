@@ -14,6 +14,12 @@ from dotenv import load_dotenv
 import time
 import warnings
 import random
+from functools import lru_cache
+from typing import Dict, List, Optional, Tuple, Any
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 with warnings.catch_warnings():
     warnings.filterwarnings('ignore', category=UserWarning)
@@ -40,7 +46,7 @@ def llm_req(message, functions=None, stream=False):
         
         headers = {
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {os.environ.get('AIPROXY_TOKEN')}"
+            "Authorization": f"Bearer {os.environ.get('OPENAI_API_KEY')}"
         }
 
         data = {
@@ -53,7 +59,8 @@ def llm_req(message, functions=None, stream=False):
             data["functions"] = functions
 
         response = requests.post(
-            "https://aiproxy.sanand.workers.dev/openai/v1/chat/completions", 
+            # "https://aiproxy.sanand.workers.dev/openai/v1/chat/completions", 
+            "https://api.openai.com/v1/chat/completions",
             headers=headers, 
             json=data,
             timeout=60
@@ -62,7 +69,7 @@ def llm_req(message, functions=None, stream=False):
         return response.json()
     
     except requests.exceptions.RequestException as e:
-        print(f"Error in API request: {e}")
+        logger.error(f"Error in API request: {e}")
         return None
 
 
@@ -107,7 +114,7 @@ def get_basic_info(df):
         print("for basic info",end - start)
         return info
     except Exception as e:
-        print(f"Error in get_basic_info: {e}")
+        logger.error(f"Error in get_basic_info: {e}")
         return {}
 
 def get_sample_values(df):
@@ -128,7 +135,7 @@ def get_sample_values(df):
         print("For getting sample values",end - start)
         return samples
     except Exception as e:
-        print(f"Error in get_sample_values: {e}")
+        logger.error(f"Error in get_sample_values: {e}")
         return {}
 
 def outlier_detection(df):
@@ -166,7 +173,7 @@ def outlier_detection(df):
         print("For outlier detection",end - start)
         return outliers
     except Exception as e:
-        print(f"Error in outlier_detection: {e}")
+        logger.error(f"Error in outlier_detection: {e}")
         return {}
 
 def return_none(series):
@@ -195,6 +202,8 @@ def correlation_heatmap(df):
         plt.figure(figsize=(12,8))
         sns.heatmap(num_df.corr(), annot=True, cmap='coolwarm',fmt= '.2f' )
         plt.title('Correlation Heatmap')
+        plt.xlabel("Dataset Features")
+        plt.ylabel("Dataset Features")
         plt.tight_layout()
         plt.savefig('correlation.png')
         plt.close()
@@ -203,7 +212,7 @@ def correlation_heatmap(df):
         print("For correlation heatmap", end - start)
         return 'correlation.png'
     except Exception as e:
-        print(f"Error in correlation_heatmap: {e}")
+        logger.error(f"Error in correlation_heatmap: {e}")
         return None
     
 def dynamic_analysis(df):
@@ -225,7 +234,7 @@ def dynamic_analysis(df):
         return True
     
     except Exception as e:
-        print(f"Error in dynamic_analysis: {e}")
+        logger.error(f"Error in dynamic_analysis: {e}")
         return False    
 
 def plot_group(df, cols, group_num):
@@ -257,7 +266,7 @@ def plot_group(df, cols, group_num):
         print("For plot group", end - start)
         return output_path
     except Exception as e:
-        print(f"Error in plot_group: {e}")
+        logger.error(f"Error in plot_group: {e}")
         return None
 
 def combine_plots(image_paths, output_path='distributions.png'):
@@ -317,7 +326,7 @@ def combine_plots(image_paths, output_path='distributions.png'):
         print("For combine plots", end - start)
         return output_path
     except Exception as e:
-        print(f"Error in combine_plots: {e}")
+        logger.error(f"Error in combine_plots: {e}")
         return None
 
 
@@ -365,7 +374,7 @@ def distribution_plots(df):
         return final_path
 
     except Exception as e:
-        print(f"Error in distribution_plots: {e}")
+        logger.error(f"Error in distribution_plots: {e}")
         return None
 
 def change_image_encoding(img):
@@ -386,7 +395,7 @@ def change_image_encoding(img):
             print("For change image encoding", end - start)
             return base64.b64encode(image.read()).decode('utf-8')
     except Exception as e:
-        print(f"Error in change_image_encoding: {e}")
+        logger.error(f"Error in change_image_encoding: {e}")
         return None
 
 
@@ -565,14 +574,102 @@ def time_series_analysis(df):
                 break
 
         except Exception as e:
-            print(f"Error processing time column {time_col}: {str(e)}")
+            logger.error(f"Error processing time column {time_col}: {str(e)}")
             continue
 
     end = time.time()
     print("Time series analysis completed in", end - start, "seconds.")
     return hypothesis_results
 
-def initial_analyse(csv_file,stats,sample,outlier,cluster,hypothesis):
+def generate_dynamic_analysis_prompt(df: pd.DataFrame, basic_info: Dict, cluster,hypothesis) -> str:
+    """
+    Generate a dataset-specific analysis prompt based on characteristics.
+    
+    Args:
+        df (pd.DataFrame): Input DataFrame
+        basic_info (Dict): Basic dataset information
+        cluster (int): A dictionary containing information about the number of clusters (if any) in the dataset.
+        hypothesis (dict): A dictionary containing hypothesis test results (if present) for the dataset.
+        
+    Returns:
+        str: Customized analysis prompt
+    """
+    num_rows = len(df)
+    numeric_cols = basic_info.get('numeric_columns', [])
+    categorical_cols = basic_info.get('categorical_columns', [])
+    missing_values = basic_info.get('missing_values', {})
+    clusters = cluster
+
+    hypo = hypothesis
+    # Build prompt sections based on data characteristics
+    sections = []
+    
+    if numeric_cols:
+        sections.append("""
+        Numerical Analysis:
+        - Identify key statistical patterns and relationships
+        - Analyze distribution shapes and outliers
+        - Examine correlations between numeric variables
+        """)
+        
+    if categorical_cols:
+        sections.append("""
+        Categorical Analysis:
+        - Analyze frequency distributions
+        - Identify important category combinations
+        - Examine relationships with numeric variables
+        """)
+        
+    if any(missing_values.values()):
+        sections.append("""
+        Missing Data Analysis:
+        - Assess impact of missing values
+        - Identify patterns in missing data
+        - Recommend handling strategies
+        """)
+        
+    if len(df) > 1000:
+        sections.append("""
+        Large Dataset Considerations:
+        - Focus on key trends and patterns
+        - Identify significant subgroups
+        - Recommend sampling strategies if needed
+        """)
+    
+    if clusters:
+        sections.append(f"""
+        Cluster Analysis:
+        - Identify clusters based on {cluster}
+        - Analyze relationships between {clusters}
+        - Explore cluster profiles and make recommendations
+        """)
+    
+    if hypo:
+        sections.append(f"""
+        Hypothesis Testing:
+        - Hypothesis Results: {hypo}
+        - Determine if the hypothesis is supported by the data
+        - Provide recommendations for further investigation
+        """)
+    
+    # Combine sections into final prompt
+    prompt = f"""
+    Analyze this dataset with {num_rows} rows considering:
+    
+    {' '.join(sections)}
+    
+    Provide:
+    1. Key insights and patterns
+    2. Potential issues or limitations
+    3. Specific recommendations for action for stakeholders
+    4. Areas for further investigatio
+    5. Refrences for findings
+    """
+    
+    return prompt
+
+
+def initial_analyse(csv_file,stats,sample,outlier,prompt):
     """
     Perform initial analysis of the dataset using basic stats, sample values, and outliers detected (if any).
     This function reads a CSV file, extracts basic statistics, sample values, and outlier information,
@@ -583,8 +680,7 @@ def initial_analyse(csv_file,stats,sample,outlier,cluster,hypothesis):
     stats (dict): A dictionary containing basic statistics of the dataset.
     sample (dict): A dictionary containing sample values of the dataset.
     outlier (dict): A dictionary containing detected outliers in the dataset.
-    cluster (dict): A dictionary containing information about the number of clusters (if any) in the dataset.
-    hypothesis (dict): A dictionary containing hypothesis test results (if present) for the dataset.
+    
 
     Returns:
     str: A comprehensive analysis of the dataset including data overview, key patterns and relationships, notable outliers or anomalies, 
@@ -597,9 +693,7 @@ def initial_analyse(csv_file,stats,sample,outlier,cluster,hypothesis):
         sample_values = sample
 
         outliers = outlier
-        clusters = cluster
-
-        hypo = hypothesis
+        
 
         # Initial Prompt
         analysis_prompt = {
@@ -610,32 +704,11 @@ def initial_analyse(csv_file,stats,sample,outlier,cluster,hypothesis):
     Basic stats: {pd.json_normalize(basic_stats).to_dict(orient='records')[0]}
     Sample values: {json.dumps(sample_values, indent=2)}
     Outlier : {json.dumps(outliers, indent=2)}
-    Number of clusters (if any) : {clusters}
-    Time Series Analysis with Hypothesis Testing Results (if present): {json.dumps(hypo, indent=2)}
+    
 
-    Please structure your analysis with clear, actionable sections:
+    {prompt}
 
-    1. Data Overview
-       - Dataset composition and size
-       - Data quality assessment
-       - Variable types and distributions
-
-    2. Key Patterns & Relationships
-       - Primary trends in the data
-       - Notable correlations
-       - Meaningful segments or clusters
-
-    3. Anomalies & Special Cases
-       - Statistical outliers with context
-       - Unusual patterns or relationships
-       - Data quality concerns
-
-    4. Business Implications & Recommendations
-       - Key insights for stakeholders
-       - Specific action items
-       - Areas for further investigation
-
-    Focus on concrete, data-driven observations and avoid generic statements.
+    Focus on concrete, observations and avoid generic statements.
     Support each finding with specific numbers or examples from the data.
     Highlight practical implications rather than just statistical facts.
     """
@@ -752,259 +825,273 @@ def run_generated_code(response):
     
     return []
     
-def visual_analysis(csv_file):
+@lru_cache(maxsize=32)
+def analyze_plot(image_path: str, analysis_type: str) -> Optional[str]:
     """
-    Perform visual analysis by generating insights for each visualization and consolidating them using 
-    a vision-agentic flow by calling LLM on the results of inital LLM outputs.
-
-    Parameters:
-    csv_file (str): The path to the CSV file to be analyzed.
-
+    Analyze a single plot using LLM vision capabilities.
+    
+    Args:
+        image_path (str): Path to the image file
+        analysis_type (str): Type of analysis to perform
+        
     Returns:
-    str: A string containing brief summaries of the insights derived from visualizations, which can help in narrative storytelling of these graphs or charts.
-
-    Raises:
-    RuntimeError: If no visual analyses were successfully generated.
-    ValueError: If there is an error generating correlation heatmap or distribution plots.
+        Optional[str]: Analysis result or None if analysis fails
     """
     try:
-        start = time.time()
+        image_base64 = change_image_encoding(image_path)
+        if not image_base64:
+            logger.warning(f"Failed to encode {image_path}")
+            return None
 
-        # Step 1: Generate individual plot analyses
-        df = pd.read_csv(csv_file, encoding='unicode_escape')
-        correlation_plot = correlation_heatmap(df)
-        distribution_plot = distribution_plots(df)
-
-        # Cache Base64 encodings for efficiency
-        encoded_images = {}
-
-        def encode_image(file_path):
-            if file_path not in encoded_images:
-                encoded_images[file_path] = change_image_encoding(file_path)
-            return encoded_images[file_path]
-
-        # Helper to process individual plots
-        def analyze_plot(image_path, analysis_type):
-            image_base64 = encode_image(image_path)
-            if not image_base64:
-                print(f"Warning: Failed to encode {image_path}")
-                return None
-
-            vision_prompt = {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": f"Perform a detailed {analysis_type} analysis on the following visualization."
-                    },
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "detail": "low",
-                            "url": f"data:image/png;base64,{image_base64}"
-                        }
-                    }
-                ]
-            }
-
-            response = llm_req([vision_prompt])
-            return response['choices'][0]['message']['content'] if response else None
-
-        # Prepare tasks for parallel execution
-        tasks = []
-        if correlation_plot:
-            tasks.append((correlation_plot, "correlation"))
-        if distribution_plot:
-            tasks.append((distribution_plot, "distribution"))
-
-        # Include additional plots
-        current_directory = os.getcwd()
-        additional_png_files = [
-            file for file in os.listdir(current_directory)
-            if file.endswith(".png") and file not in ['distributions.png', 'correlation.png']
-        ]
-        for file in additional_png_files:
-            tasks.append((file, "custom"))
-
-        # Parallelize analysis
-        vision_analysis_results = {}
-
-        def process_task(task):
-            image_path, analysis_type = task
-            analysis = analyze_plot(image_path, analysis_type)
-            return analysis_type, analysis
-
-        with ThreadPoolExecutor() as executor:
-            results = executor.map(process_task, tasks)
-
-        # Collect results
-        for analysis_type, analysis in results:
-            if analysis:
-                vision_analysis_results[analysis_type] = analysis
-
-        if not vision_analysis_results:
-            raise RuntimeError("No visual analyses were successfully generated.")
-
-        # Step 2: Consolidate and deepen insights
-        summary_prompt = {
+        vision_prompt = {
             "role": "user",
-            "content": f"""
-            Given the following analyses derived from visualizations:
-            {json.dumps(vision_analysis_results, indent=2)}
-
-            Consolidate these findings into BRIEF summaries that can help in narrative storytelling of these graphs or charts."""
+            "content": [
+                {
+                    "type": "text",
+                    "text": f"Perform brief {analysis_type} analysis on the following visualization."
+                },
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "detail": "low",
+                        "url": f"data:image/png;base64,{image_base64}"
+                    }
+                }
+            ]
         }
 
-        response = llm_req([summary_prompt])
-        consolidated_insights = response['choices'][0]['message']['content'] if response else "Error in consolidating insights."
-
-        end = time.time()
-        print("Vision analysis completed in", end - start, "seconds")
-
-        return consolidated_insights
-
-    except ValueError as e:
-        print(f"Error: Failed to generate correlation heatmap or distribution plots. Reason: {e}")
-        return "Error: Failed to generate correlation heatmap or distribution plots."
-    except RuntimeError as e:
-        print(f"Error: Failed to get LLM response. Reason: {e}")
-        return "Error: Failed to get LLM response."
+        response = llm_req([vision_prompt])
+        return response['choices'][0]['message']['content'] if response else None
     except Exception as e:
-        print(f"Error: An unexpected error occurred. Reason: {e}")
-        return "Error: An unexpected error occurred."
+        logger.error(f"Error analyzing plot {image_path}: {e}")
+        return None
+
+def generate_plot_summaries() -> Dict[str, str]:
+    """
+    Generate summaries for all PNG plots in the current directory.
     
-
-def main(csv_file):
-    """
-    The main function orchestrates the entire data analysis pipeline for a dataset provided as a CSV file. 
-    It integrates multiple analytical methods, leverages function calling with an LLM, 
-    and generates a cohesive narrative, actionable insights, and recommendations based on the data. 
-
-    Parameters:
-    csv_file (str): The path to the CSV file to be analyzed.
-
     Returns:
-    The function does not return any value. It writes the output to a README.md file in the working directory.
+        Dict[str, str]: Dictionary mapping plot types to their analyses
     """
-
     try:
         start = time.time()
+        vision_analysis_results = {}
+        current_directory = os.getcwd()
+        png_files = [f for f in os.listdir(current_directory) if f.endswith('.png')]
+        
+        with ThreadPoolExecutor() as executor:
+            futures = []
+            for png_file in png_files:
+                analysis_type = 'correlation' if 'correlation' in png_file else \
+                              'distribution' if 'distribution' in png_file else \
+                              'silhouette' if 'silhouette' in png_file else \
+                              'timeseries' if 'timeseries' in png_file else 'custom'
+                futures.append(executor.submit(analyze_plot, png_file, analysis_type))
+            
+            for f, png_file in zip(futures, png_files):
+                result = f.result()
+                if result:
+                    vision_analysis_results[png_file] = result
+        end = time.time()
+        print("For Generate Plot summaries",end-start)
+        return vision_analysis_results
+    except Exception as e:
+        logger.error(f"Error generating plot summaries: {e}")
+        return {}
+
+
+def consolidate_summaries(vision_analysis_results: Dict[str, str]) -> str:
+    """
+    Consolidate individual plot analyses into a cohesive narrative.
+    
+    Args:
+        vision_analysis_results (Dict[str, str]): Individual plot analyses
+        
+    Returns:
+        str: Consolidated narrative
+    """
+    start= time.time()
+    if not vision_analysis_results:
+        return "No visual analyses were generated."
+        
+    summary_prompt = {
+        "role": "user",
+        "content": f"""
+        Analyze these visualization findings:
+        {json.dumps(vision_analysis_results, indent=2)}
+        
+        Create a cohesive narrative that:
+        1. Flows naturally between different visualization types
+        2. Highlights relationships between findings
+        3. Emphasizes practical implications
+        4. Provides clear, actionable insights
+        """
+    }
+    
+    response = llm_req([summary_prompt])
+    end = time.time()
+    print("For Consolidated visualization summary: ",end-start)
+    return response['choices'][0]['message']['content'] if response else "Error consolidating insights."
+    
+def should_perform_clustering(df: pd.DataFrame, basic_info: Dict) -> bool:
+    """
+    Determine if clustering should be performed based on dataset characteristics.
+    
+    Args:
+        df (pd.DataFrame): Input DataFrame
+        basic_info (Dict): Basic dataset information
+        
+    Returns:
+        bool: Whether clustering should be performed
+    """
+    num_rows = len(df)
+    num_numeric_cols = len(basic_info.get('numeric_columns', []))
+    memory_usage = df.memory_usage(deep=True).sum() / 1024**2  # MB
+    
+    # Define thresholds
+    MAX_ROWS = 3000
+    MAX_NUMERIC_COLS = 10
+    MAX_MEMORY = 500  # MB
+    
+    return (num_rows < MAX_ROWS and 
+            num_numeric_cols < MAX_NUMERIC_COLS and 
+            memory_usage < MAX_MEMORY)
+
+
+def process_dataset(df: pd.DataFrame) -> Tuple[Dict, Dict, Dict, Optional[int], Optional[Dict]]:
+    """
+    Process dataset and generate various analyses.
+    
+    Args:
+        df (pd.DataFrame): Input DataFrame
+        
+    Returns:
+        Tuple containing basic stats, sample values, outliers, clusters, and hypothesis results
+    """
+    basic_stats = get_basic_info(df)
+    sample_values = get_sample_values(df)
+    outliers = outlier_detection(df)
+    correlation_heatmap(df)
+    distribution_plots(df)
+    
+    clusters = None
+    if should_perform_clustering(df, basic_stats):
+        clusters = clustering(df, basic_stats)
+        
+    hypothesis = time_series_analysis(df)
+    
+    return basic_stats, sample_values, outliers, clusters, hypothesis
+
+
+def main(csv_file: str) -> None:
+    """
+    Main function orchestrating the data analysis pipeline.
+    
+    Args:
+        csv_file (str): Path to input CSV file
+    """
+    try:
+        logger.info("Starting analysis pipeline")
+        start_time = time.time()
+        
+        # Validate input file
         if not os.path.exists(csv_file):
-            print(f"Error: File '{csv_file}' does not exist")       # Check whether csv file exists or not
-            return
-        
+            raise FileNotFoundError(f"File '{csv_file}' does not exist")
+            
+        # Read and process dataset
         df = pd.read_csv(csv_file, encoding='unicode_escape')
-
-        basic_stats = get_basic_info(df)
-        sample_values = get_sample_values(df)
-
-        outliers = outlier_detection(df)
-
-        if len(df) < 3000 or len(basic_stats['numeric_columns']) < 10:
-            clusters = clustering(df,basic_stats)
-        else:
-            clusters = None
-
-        hypo = time_series_analysis(df)
+        basic_stats, sample_values, outliers, clusters, hypothesis = process_dataset(df)
         
-        ## Created a function object that can be passed to LLM request for function calling
+        # Generate analyses
+        analysis_prompt = generate_dynamic_analysis_prompt(df, basic_stats,clusters, hypothesis)
+        initial_analysis = initial_analyse(csv_file, basic_stats, sample_values, outliers, analysis_prompt)
+        generated_code = generate_python_code(csv_file, basic_stats)
+        
+        # Execute generated code and analyze plots
+        run_generated_code(generated_code)
+        vision_analysis_results = generate_plot_summaries()
+        consolidated_vision_analysis = consolidate_summaries(vision_analysis_results)
+        current_directory = os.getcwd()
+        png_files = [f for f in os.listdir(current_directory) if f.endswith('.png')]
+        
+        # Generate final narrative
         function_calling = [
             {
                 "name": "final_narration",
-                "description": "Provide information on initial analysis, vision or visual analysis(if present) and Generated Code for analysis for the current dataset",
+                "description": "Integrate all analyses into a cohesive narrative",
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "initial_analysis": {
-                            "type": "string",
-                            "description": "Provide a comprehensive analysis which covers data overview,key patterns and relationships,outliers and anomalies,potential insights using basic statistics, sample values, other advanced analysis method like regression, time series etc",
-                        },
-                        "vision_analysis": {
-                            "type": "string",
-                            "description": "Contains base64 string representation of annotated correlation heatmaps, distribution plots,silhouette score plots, timeseries plots and others along with their respective analysis information",
-                        },
-                        "generated_code_for_analysis": {
-                            "type": "string",
-                            "description": "Includes python code that can be executed for further analysis on this dataset such as regression analysis, feature importance analysis, outlier handling etc.",
-                        },
+                        "initial_analysis": {"type": "string"},
+                        "vision_analysis": {"type": "string"},
+                        "generated_code_for_analysis": {"type": "string"}
                     },
-                    "required": ["initial_analysis", "vision_analysis", "generated_code_for_analysis"],
-                },
+                    "required": ["initial_analysis", "vision_analysis", "generated_code_for_analysis"]
+                }
             }
         ]
-
-        # First, get all the analyses
-        initial_analysis_result = initial_analyse(csv_file,basic_stats,sample_values,outliers,clusters,hypo)
-        generated_code_result = generate_python_code(csv_file,basic_stats)
-        vision_analysis_result = visual_analysis(csv_file)
-        run_generated_code(generated_code_result)
-
-        def final_narration(initial_analysis, vision_analysis, generated_code_for_analysis):
-            analysis = {
-                "initial_analysis": initial_analysis,
-                "generated_code_for_analysis": generated_code_for_analysis,
-                "vision_analysis": vision_analysis
-            }
-            return json.dumps(analysis)
-
-        # Create a combined analysis
-        combined_analysis = final_narration(
-            initial_analysis=initial_analysis_result[:500],
-            generated_code_for_analysis=generated_code_result,
-            vision_analysis=vision_analysis_result
-            
-        )
-        current_directory = os.getcwd() 
-        png_files = [] 
         
-
-        # Iterate over all files in the current directory 
-        for file in os.listdir(current_directory): 
-            if file.endswith(".png"):
-                png_files.append(file)
-            
-
-        # Prompt for final narration
-        final_prompt = f"""Combine the following analyses into a cohesive narrative:
-
-        Initial Analysis 
-        Visual Analysis
-        Generated Code for analysis
-
-        Create a final README.md that:
-        1. Narrate a compelling story about the data covering introduction and brief about the dataset, data overview, basic - advanced statistics and other key metrics
-        2. Highlights key insights and inferences made
-        3. Provides actionable recommendations for different intended audience groups
-        4. Don't forget to add {png_files} using file_name.png into README.md 
-        5. Properly add inferences about EACH .png file and leverage the visual analysis retrieved to reference the {png_files} visualizations
-        6. Include generated code for analysis and how it is suitable 
-        7. Detailed conclusion 
-
-        Format in Markdown with clear sections and don't add ```markdown in the beginning of your output"""
-
-        # Make the final LLM call with function calling !! 
-        final_response = llm_req([
-            {"role": "user", "content": final_prompt},
-            {"role": "function", "name": "final_narration", "content": combined_analysis}],functions = function_calling)
-                # Calling LLM via requests for response
-
+        final_prompt = f"""
+        Create a comprehensive README.md in a narrative storytelling fashion that contains:
+        
+        1. Introduction to Dataset and Analysis Methods
+           - Introduction of Dataset
+           - Dataset Overview and Descriptions
+           - Key characteristics and quality metrics
+           
+        2. Analysis & Findings
+           - Statistical patterns and findings
+           - Add plots present in {png_files} with same file names and respective interpretations.
+           - Visual analysis results with clear references to plots
+           - Advanced analytics results (clustering, time series, etc.)
+           
+        3. Data Insight & Technical Details
+           - Insights reveleaded through different analysis methods
+           - Generated code explanation and purpose
+           - Methodology and approach
+           
+        4. Implications & Recommendations
+           - Implications of working with this data
+           - Business implications
+           - Action items by stakeholder group
+           - Areas for further investigation
+           
+        5. Conclusion
+           - Summary of key findings
+           - Next steps
+        
+        Do not add ```markdown at the beginning of markdown in readme.md.
+        Ensure smooth transitions between sections.
+        """
+        
+        final_response = llm_req(
+            [
+                {"role": "user", "content": final_prompt},
+                {
+                    "role": "function", 
+                    "name": "final_narration", 
+                    "content": json.dumps({
+                        "initial_analysis": initial_analysis[:500],
+                        "generated_code_for_analysis": generated_code,
+                        "vision_analysis": consolidated_vision_analysis
+                    })
+                }
+            ],
+            functions=function_calling
+        )
+        
         if not final_response:
-            print("Error: Failed to get final response")
-            return
-
-        final_narrative = final_response['choices'][0]['message']['content']
-
-        # Write response received from LLM to a README.md file
+            raise RuntimeError("Failed to generate final response")
+            
+        # Write README
         with open('README.md', 'w') as f:
-            f.write(final_narrative)
-        end = time.time()
-        print("Main method", end-start)
-        print("Analysis complete. README.md has been generated.")
-
+            f.write(final_response['choices'][0]['message']['content'])
+            
+        logger.info(f"Analysis complete in {time.time() - start_time:.2f} seconds")
+        
     except Exception as e:
-        print(f"Error in main function: {e}")
-        return
-
+        logger.error(f"Error in main function: {e}")
+        raise
 
 
 if __name__ == "__main__":
