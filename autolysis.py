@@ -867,7 +867,13 @@ def analyze_plot(image_path: str, analysis_type: str) -> Optional[str]:
             "content": [
                 {
                     "type": "text",
-                    "text": f"Perform brief {analysis_type} analysis on the following visualization."
+                    "text": f"""Perform detailed {analysis_type} analysis on the following visualization.
+                    Create a cohesive narrative that:
+                    1. Flows naturally between different visualization types
+                    2. Highlights relationships between findings
+                    3. Emphasizes practical implications
+                    4. Provides clear, actionable insights
+                    """
                 },
                 {
                     "type": "image_url",
@@ -918,39 +924,6 @@ def generate_plot_summaries() -> Dict[str, str]:
         logger.error(f"Error generating plot summaries: {e}")
         return {}
 
-
-def consolidate_summaries(vision_analysis_results: Dict[str, str]) -> str:
-    """
-    Consolidate individual plot analyses into a cohesive narrative.
-    
-    Args:
-        vision_analysis_results (Dict[str, str]): Individual plot analyses
-        
-    Returns:
-        str: Consolidated narrative
-    """
-    start= time.time()
-    if not vision_analysis_results:
-        return "No visual analyses were generated."
-        
-    summary_prompt = {
-        "role": "user",
-        "content": f"""
-        Analyze these visualization findings:
-        {json.dumps(vision_analysis_results, indent=2)}
-        
-        Create a cohesive narrative that:
-        1. Flows naturally between different visualization types
-        2. Highlights relationships between findings
-        3. Emphasizes practical implications
-        4. Provides clear, actionable insights
-        """
-    }
-    
-    response = llm_req([summary_prompt])
-    end = time.time()
-    print("For Consolidated visualization summary: ",end-start)
-    return response['choices'][0]['message']['content'] if response else "Error consolidating insights."
     
 def dynamic_clustering_decision(df: pd.DataFrame, basic_info: Dict) -> bool:
     """
@@ -1028,7 +1001,6 @@ def main(csv_file: str) -> None:
         
         # Execute generated code and analyze plots
         vision_analysis_results = generate_plot_summaries()
-        consolidated_vision_analysis = consolidate_summaries(vision_analysis_results)
         run_generated_code(generated_code)
         current_directory = os.getcwd()
         png_files = [f for f in os.listdir(current_directory) if f.endswith('.png')]
@@ -1090,9 +1062,9 @@ def main(csv_file: str) -> None:
                     "role": "function", 
                     "name": "final_narration", 
                     "content": json.dumps({
-                        "initial_analysis": initial_analysis[:500],
+                        "initial_analysis": initial_analysis,
                         "generated_code_for_analysis": generated_code,
-                        "vision_analysis": consolidated_vision_analysis
+                        "vision_analysis": vision_analysis_results
                     })
                 }
             ],
