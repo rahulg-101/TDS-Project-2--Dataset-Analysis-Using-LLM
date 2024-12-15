@@ -105,7 +105,7 @@ def get_basic_info(df):
     """
     
     try:
-        start = time.time()
+        
         info = {
             'Number of rows': len(df),
             'Number of columns': len(df.columns),
@@ -129,8 +129,7 @@ def get_basic_info(df):
             'categorical_columns': df.select_dtypes(include=['object']).columns.tolist(),
             'unique_values': {col: df[col].nunique() for col in df.columns.tolist()},
         })
-        end = time.time()
-        print("for basic info",end - start)
+        
         return info
     except Exception as e:
         logger.error(f"Error in get_basic_info: {e}")
@@ -147,11 +146,10 @@ def get_sample_values(df):
     dict: A dictionary with sample values from each column in the DataFrame.
     """
     try:
-        start = time.time()
+        
         # Taking sample of 6 values or count of values present in the series, whichever is the minimum
         samples = {col: df[col].dropna().sample(n=min(6, df[col].count())).tolist() for col in df.columns}         
-        end = time.time()
-        print("For getting sample values",end - start)
+        
         return samples
     except Exception as e:
         logger.error(f"Error in get_sample_values: {e}")
@@ -169,7 +167,7 @@ def outlier_detection(df):
     dict: A dictionary with outlier values from each column in the DataFrame.
     """
     try:
-        start = time.time()
+        
         outliers = {}
         for col in df.select_dtypes(include=[np.number]).columns:
             Q1 = df[col].quantile(0.25)
@@ -188,8 +186,7 @@ def outlier_detection(df):
                 'upper_bound': upper_outliers.sample(n=min(5, len(upper_outliers))).tolist() if not upper_outliers.empty else [],
                 'count': len(lower_outliers) + len(upper_outliers)
             }
-        end = time.time()
-        print("For outlier detection",end - start)
+        
         return outliers
     except Exception as e:
         logger.error(f"Error in outlier_detection: {e}")
@@ -220,7 +217,7 @@ def correlation_heatmap(df):
     path: The path to the correlation.png file    
     """
     try:
-        start = time.time()
+        
         num_df = df.select_dtypes(include=[np.number])
         if len(num_df.columns) < 2:
             return None
@@ -234,8 +231,7 @@ def correlation_heatmap(df):
         plt.savefig('correlation.png')
         plt.close()
         
-        end = time.time()
-        print("For correlation heatmap", end - start)
+        
         return 'correlation.png'
     except Exception as e:
         logger.error(f"Error in correlation_heatmap: {e}")
@@ -274,7 +270,7 @@ def plot_group(df, cols, group_num):
     Returns:
     str: The path of the saved combined distribution plot. Returns None if an error occurs.
     """
-    start = time.time()
+    
     try:
         fig = plt.figure(figsize=(12, 6))
         for i, col in enumerate(cols):  
@@ -288,8 +284,7 @@ def plot_group(df, cols, group_num):
         plt.savefig(output_path, bbox_inches='tight')
         plt.close()
     
-        end = time.time()
-        print("For plot group", end - start)
+        
         return output_path
     except Exception as e:
         logger.error(f"Error in plot_group: {e}")
@@ -308,7 +303,7 @@ def combine_plots(image_paths, output_path='distributions.png'):
     Returns:
     str: The path of the saved combined image. Returns None if an error occurs.
     """
-    start = time.time()
+    
     
     try:
         if not image_paths:
@@ -348,8 +343,7 @@ def combine_plots(image_paths, output_path='distributions.png'):
             except Exception:
                 continue
         
-        end = time.time()
-        print("For combine plots", end - start)
+        
         return output_path
     except Exception as e:
         logger.error(f"Error in combine_plots: {e}")
@@ -369,7 +363,7 @@ def distribution_plots(df):
     str: Path of the saved combined distribution plot or None if an error occurs.
     """
     try:
-        start = time.time()
+        
         numeric_cols = df.select_dtypes(include=[np.number]).columns
         if return_none(numeric_cols)== False:
             return None
@@ -395,8 +389,7 @@ def distribution_plots(df):
                 
         final_path = combine_plots(plot_paths)
         
-        end = time.time()
-        print("For distribution plots", end-start)
+        
         return final_path
 
     except Exception as e:
@@ -413,12 +406,11 @@ def change_image_encoding(img):
     str: String representation of the of images saved
     """
     try:
-        start = time.time()
+        
         if not os.path.exists(img):
             return None
         with open(img, "rb") as image:
-            end = time.time()
-            print("For change image encoding", end - start)
+            
             return base64.b64encode(image.read()).decode('utf-8')
     except Exception as e:
         logger.error(f"Error in change_image_encoding: {e}")
@@ -437,7 +429,7 @@ def clustering(df, basic_info):
     Returns:
     int: Optimal number of clusters based on silhouette score.
     """
-    start = time.time()  # Start timing the function execution
+    
 
     # Import necessary libraries
     import seaborn as sns
@@ -454,13 +446,11 @@ def clustering(df, basic_info):
         # Exit early if no numeric columns are available
         return None
 
-    # Create a copy of the numeric data to ensure the original dataframe is not modified
     numeric_data = df[numeric_cols].copy()
 
     # Handle missing values in the numeric columns
     for col in numeric_cols:
         if col in stats['missing_values']:
-            # Fill missing values with the median of the column
             numeric_data[col] = numeric_data[col].fillna(numeric_data[col].median())
 
     # Standardize the numeric data to have mean=0 and variance=1
@@ -469,21 +459,20 @@ def clustering(df, basic_info):
 
     # Define parameters for K-means clustering
     kmeans_kwargs = {
-        'init': 'k-means++',  # Smart initialization to speed up convergence
-        'n_init': 5,          # Number of times the algorithm will be run with different centroid seeds
-        'max_iter': 100,      # Maximum number of iterations for a single run
-        'random_state': 42    # Ensure reproducibility
+        'init': 'k-means++',  
+        'n_init': 5,          
+        'max_iter': 100,      
+        'random_state': 42    
     }
 
-    # Initialize an empty list to store silhouette scores for each k
     sil_coef_digits = []
 
     # Test different values of k (number of clusters) from 2 to 14
     for k in range(2, 15):
-        kmeans = KMeans(n_clusters=k, **kmeans_kwargs)  # Create a K-means model
-        kmeans.fit(scaled_features)                    # Fit the model to the scaled data
-        score = silhouette_score(scaled_features, kmeans.labels_)  # Compute silhouette score
-        sil_coef_digits.append(score)                 # Store the score
+        kmeans = KMeans(n_clusters=k, **kmeans_kwargs)  
+        kmeans.fit(scaled_features)                    
+        score = silhouette_score(scaled_features, kmeans.labels_)  
+        sil_coef_digits.append(score)                 
 
     # Plot silhouette scores to visualize the optimal k
     plt.figure(figsize=(12, 6))
@@ -491,17 +480,16 @@ def clustering(df, basic_info):
     plt.title('Silhouette Score Method for Optimal k')  
     plt.xlabel('Number of Clusters (k)')               
     plt.ylabel('Silhouette Score')                    
-    plt.grid()                                        # Add gridlines
-    plt.savefig('silhouette.png')                    # Save the plot as an image file
-    plt.close()                                      # Close the plot to free resources
+    plt.grid()                                        
+    plt.savefig('silhouette.png')                    
+    plt.close()                                      
 
     # Find the optimal number of clusters based on the highest silhouette score
     # Add 2 to the index because k starts from 2 in the range
     n = sil_coef_digits.index(max(sil_coef_digits)) + 2
 
-    end = time.time()  # End timing the function execution
-    print("K-means clustering completed in", end - start, "seconds.")
-    return n  # Return the optimal number of clusters
+    
+    return n 
 
 def time_series_analysis(df):
     """
@@ -530,7 +518,7 @@ def time_series_analysis(df):
             return "Strong evidence against the null hypothesis; the data is stationary."
         return "Weak evidence against the null hypothesis; the data is non-stationary."
 
-    start = time.time()  # Start timing the function execution
+    
     from statsmodels.tsa.stattools import adfuller
 
     # Get numeric columns from the dataframe
@@ -545,10 +533,9 @@ def time_series_analysis(df):
     time_cols = [col for col in df.columns if any(indicator in col.lower() for indicator in time_indicators)]
 
     if not time_cols:
-        # Raise an error if no time-related columns are found
         raise ValueError("No time-related columns found in the dataset.")
 
-    hypothesis_results = {}  # Dictionary to store analysis results
+    hypothesis_results = {}  
 
     for time_col in time_cols:
         try:
@@ -585,17 +572,16 @@ def time_series_analysis(df):
                     plt.grid(True)
                     plt.tight_layout()
 
-                    # Generate a safe filename for the plot
+                    
                     safe_filename = f"timeseries_{time_col}_{numeric_col}".replace(" ", "_").replace("/", "_")
                     plt.savefig(f"{safe_filename}.png")
                     plt.close()
 
                 except Exception as plot_error:
-                    # Handle errors during plot creation
-                    print(f"Error creating plot for {numeric_col} over {time_col}: {plot_error}")
+                    logger.error(f"Error creating plot for {numeric_col} over {time_col}: {plot_error}")
                     return None
 
-                # Perform the Augmented Dickey-Fuller (ADF) test for stationarity
+                # Perform the Augmented Dickey-Fuller (ADF) Hypothesis test for stationarity
                 try:
                     adf_result = adfuller(series_data.dropna())
                     adf_stat, p_value, _, _, critical_values, _ = adf_result
@@ -603,7 +589,7 @@ def time_series_analysis(df):
                     # Interpret the results of the ADF test
                     stationarity_result = test_stationarity(p_value)
 
-                    # Store the results in the dictionary
+
                     hypothesis_results[f"{numeric_col}_{time_col}"] = {
                         "column": numeric_col,
                         "time_reference": time_col,
@@ -612,11 +598,10 @@ def time_series_analysis(df):
                         "critical_values": critical_values,
                         "stationarity_test": stationarity_result,
                     }
-                    break  # Exit the loop once a valid column is processed
+                    break  
 
                 except Exception as adf_error:
-                    # Handle errors during the ADF test
-                    print(f"Error performing ADF test for {numeric_col}: {adf_error}")
+                    logger.error(f"Error performing ADF test for {numeric_col}: {adf_error}")
                     return None
 
             # Exit the outer loop once a valid numeric column is processed
@@ -624,12 +609,10 @@ def time_series_analysis(df):
                 break
 
         except Exception as e:
-            # Log errors related to processing the time column
             logger.error(f"Error processing time column {time_col}: {str(e)}")
             continue
 
-    end = time.time()  # End timing the function execution
-    print("Time series analysis completed in", end - start, "seconds.")
+    
     return hypothesis_results
 
 def dynamic_analysis_prompt(df: pd.DataFrame, basic_info: Dict, cluster,hypothesis) -> str:
@@ -731,8 +714,7 @@ def initial_analyse(csv_file,stats,sample,outlier,prompt):
     and potential insights and implications. If an error occurs during the analysis, it returns an error message.
     """
     try:
-        start = time.time()
-
+        
         basic_stats = stats
         sample_values = sample
 
@@ -761,13 +743,11 @@ def initial_analyse(csv_file,stats,sample,outlier,prompt):
         if not analysis_response:
             return "Error in initial analysis LLM response"
 
-        end = time.time()
-        print("Initial analysis", end-start)
-        # print(analysis_response)
+        
         return analysis_response['choices'][0]['message']['content']
 
     except Exception as e:
-        print(f"Error in initial_analyse: {e}")
+        logger.error(f"Error in initial_analyse: {e}")
         return "Error in analyzing data"
 
 
@@ -787,10 +767,7 @@ def generate_python_code(csv_file,stats):
     str: Python code based on the analysis of the dataset. If an error occurs during the analysis, it returns an error message.
     """
     try:
-        start = time.time()
-
-        # df = pd.read_csv(csv_file, encoding='unicode_escape')
-
+        
         basic_stats = stats
         
         numeric_cols = basic_stats['numeric_columns']
@@ -831,12 +808,10 @@ def generate_python_code(csv_file,stats):
         if not code_gen_response or 'choices' not in code_gen_response:
             return "Error in generating_python_code() method LLM request"
         
-        end = time.time()
-        print("Generate Python code",end-start)
         return code_gen_response['choices'][0]['message']['content']
 
     except Exception as e:
-        print(f"Error in generate_python_code: {e}")
+        logger.error(f"Error in generate_python_code: {e}")
         return "Error in generating code"
 
 
@@ -862,9 +837,9 @@ def run_generated_code(response):
         return generated_plots
 
     except SyntaxError as se:
-        print(f"Syntax error in the generated code: {se}")
+        logger.error(f"Syntax error in the generated code: {se}")
     except Exception as e:
-        print(f"Error executing LLM-generated code: {e}")
+        logger.error(f"Error executing LLM-generated code: {e}")
     
     return []
     
@@ -891,7 +866,7 @@ def analyze_plot(image_path: str, analysis_type: str) -> Optional[str]:
             "content": [
                 {
                     "type": "text",
-                    "text": f"""Perform short {analysis_type} analysis on the following visualization that:                    
+                    "text": f"""Perform short (upto 20-30 words) {analysis_type} analysis on the following visualization that:                    
                     1. Highlights relationships between findings
                     2. Specify numbers wherever appropriate
                     3. Provides clear, actionable insights
@@ -921,7 +896,6 @@ def generate_plot_summaries() -> Dict[str, str]:
         Dict[str, str]: Dictionary mapping plot types to their analyses
     """
     try:
-        start = time.time()
         vision_analysis_results = {}
         current_directory = os.getcwd()
         png_files = [f for f in os.listdir(current_directory) if f.endswith('.png')]
@@ -939,8 +913,7 @@ def generate_plot_summaries() -> Dict[str, str]:
                 result = f.result()
                 if result:
                     vision_analysis_results[png_file] = result
-        end = time.time()
-        print("For Generate Plot summaries",end-start)
+        
         return vision_analysis_results
     except Exception as e:
         logger.error(f"Error generating plot summaries: {e}")
@@ -1135,16 +1108,14 @@ def main(csv_file: str) -> None:
     """
     try:
         logger.info("Starting analysis pipeline")
-        start_time = time.time()
-
+        
         # Step 1: Perform all analyses
         initial_analysis, generated_code, vision_analysis_results = perform_analysis(csv_file)
 
         # Step 2 & 3: Generate README with dynamic prompt and function calling
         generate_readme(initial_analysis, generated_code, vision_analysis_results)
 
-        logger.info(f"Analysis complete in {time.time() - start_time:.2f} seconds")
-
+        
     except Exception as e:
         logger.error(f"Error in main function: {e}")
         raise
