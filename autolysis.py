@@ -196,7 +196,14 @@ def outlier_detection(df):
         return {}
 
 def return_none(series):
-    """A helper function to return False if the series is empty"""
+    """A helper function to return False if the series is empty
+    
+    Parameters:
+    series (pandas.Series): The series to check if it's empty.
+
+    Returns:
+    bool: True if the series is not empty, False otherwise.    
+    """
 
     if len(series) == 0:
         return False
@@ -312,7 +319,7 @@ def combine_plots(image_paths, output_path='distributions.png'):
         rows = np.ceil(no_plots)
         
         # Establishing figure
-        fig = plt.figure(figsize=(12,rows*6))
+        fig = plt.figure(figsize=(15,rows*6))
         
         for i, img_path in enumerate(image_paths):
             if not os.path.exists(img_path):
@@ -418,77 +425,83 @@ def change_image_encoding(img):
         return None
 
 
-def clustering(df,basic_info=None):
+def clustering(df, basic_info):
     """
-    Perform K-means clustering on numeric data and find optimal number of clusters
+    Perform K-means clustering on numeric data and find the optimal number of clusters
     using silhouette score.
-    
+
     Parameters:
-    df (pandas.DataFrame): Input dataframe
-    basic_info (dict): Basic information about the dataset
-    
+    df (pandas.DataFrame): Input dataframe containing the dataset.
+    basic_info (dict): Basic information about the dataset (e.g., missing values).
+
     Returns:
-    int: Optimal number of clusters
+    int: Optimal number of clusters based on silhouette score.
     """
-    start = time.time()
+    start = time.time()  # Start timing the function execution
+
+    # Import necessary libraries
     import seaborn as sns
     import matplotlib.pyplot as plt
     from sklearn.cluster import KMeans
     from sklearn.metrics import silhouette_score
     from sklearn.preprocessing import StandardScaler
 
-    stats = basic_info
+    stats = basic_info  # Reference to the basic information about the dataset
 
+    # Extract numeric columns from the dataframe
     numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
     if return_none(numeric_cols) == False:
+        # Exit early if no numeric columns are available
         return None
 
-    # Create a copy of the numeric data
+    # Create a copy of the numeric data to ensure the original dataframe is not modified
     numeric_data = df[numeric_cols].copy()
 
-    # Handle missing values
+    # Handle missing values in the numeric columns
     for col in numeric_cols:
         if col in stats['missing_values']:
+            # Fill missing values with the median of the column
             numeric_data[col] = numeric_data[col].fillna(numeric_data[col].median())
-    
-    
-    # Scale the features
+
+    # Standardize the numeric data to have mean=0 and variance=1
     scaler = StandardScaler()
     scaled_features = scaler.fit_transform(numeric_data)
-    
 
-    # K-means parameters
+    # Define parameters for K-means clustering
     kmeans_kwargs = {
-        'init': 'k-means++',
-        'n_init': 5,
-        'max_iter': 20,
-        'random_state': 42
+        'init': 'k-means++',  # Smart initialization to speed up convergence
+        'n_init': 5,          # Number of times the algorithm will be run with different centroid seeds
+        'max_iter': 100,      # Maximum number of iterations for a single run
+        'random_state': 42    # Ensure reproducibility
     }
 
-    # Calculate silhouette scores for different k values
+    # Initialize an empty list to store silhouette scores for each k
     sil_coef_digits = []
-    for k in range(2, 15):
-        kmeans = KMeans(n_clusters=k, **kmeans_kwargs)
-        kmeans.fit(scaled_features)
-        score = silhouette_score(scaled_features, kmeans.labels_)
-        sil_coef_digits.append(score)
-    
-    # Plot silhouette scores
-    plt.figure(figsize=(12, 6))
-    plt.plot(range(2, 15), sil_coef_digits, marker='o')
-    plt.title('Silhouette Score Method for Optimal k')
-    plt.xlabel('Number of Clusters (k)')
-    plt.ylabel('Silhouette Score')
-    plt.grid()
-    plt.savefig('silhouette.png')
-    plt.close()
 
-    # Get optimal number of clusters (add 2 because range started from 2)
+    # Test different values of k (number of clusters) from 2 to 14
+    for k in range(2, 15):
+        kmeans = KMeans(n_clusters=k, **kmeans_kwargs)  # Create a K-means model
+        kmeans.fit(scaled_features)                    # Fit the model to the scaled data
+        score = silhouette_score(scaled_features, kmeans.labels_)  # Compute silhouette score
+        sil_coef_digits.append(score)                 # Store the score
+
+    # Plot silhouette scores to visualize the optimal k
+    plt.figure(figsize=(12, 6))
+    plt.plot(range(2, 15), sil_coef_digits, marker='o')  
+    plt.title('Silhouette Score Method for Optimal k')  
+    plt.xlabel('Number of Clusters (k)')               
+    plt.ylabel('Silhouette Score')                    
+    plt.grid()                                        # Add gridlines
+    plt.savefig('silhouette.png')                    # Save the plot as an image file
+    plt.close()                                      # Close the plot to free resources
+
+    # Find the optimal number of clusters based on the highest silhouette score
+    # Add 2 to the index because k starts from 2 in the range
     n = sil_coef_digits.index(max(sil_coef_digits)) + 2
-    
-    end = time.time()
-    print("K means cluserting",end-start)
-    return n
+
+    end = time.time()  # End timing the function execution
+    print("K-means clustering completed in", end - start, "seconds.")
+    return n  # Return the optimal number of clusters
 
 def time_series_analysis(df):
     """
@@ -502,54 +515,67 @@ def time_series_analysis(df):
     Returns:
     dict: A dictionary with hypothesis results for a column
     """
+    
     def test_stationarity(p_value):
+        """
+        Determine if a time series is stationary based on the p-value from an ADF test.
+        
+        Parameters:
+        p_value (float): The p-value from the ADF test.
+        
+        Returns:
+        str: A message indicating stationarity or non-stationarity.
+        """
         if p_value <= 0.05:
             return "Strong evidence against the null hypothesis; the data is stationary."
         return "Weak evidence against the null hypothesis; the data is non-stationary."
 
-    start = time.time()
+    start = time.time()  # Start timing the function execution
     from statsmodels.tsa.stattools import adfuller
 
-    # Get numeric columns
+    # Get numeric columns from the dataframe
     numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
     if return_none(numeric_cols) == False:
+        # Exit early if no numeric columns are available
         print("No numeric columns available for analysis.")
         return None
 
-    # Identify potential time-related columns
+    # Identify potential time-related columns based on common indicators
     time_indicators = ['date', 'time', 'year', 'month', 'day', 'week']
     time_cols = [col for col in df.columns if any(indicator in col.lower() for indicator in time_indicators)]
 
     if not time_cols:
+        # Raise an error if no time-related columns are found
         raise ValueError("No time-related columns found in the dataset.")
 
-    hypothesis_results = {}
+    hypothesis_results = {}  # Dictionary to store analysis results
 
     for time_col in time_cols:
         try:
-            # Convert time column to datetime and drop invalid rows
+            # Convert the time-related column to datetime format, handling invalid entries
             df[time_col] = pd.to_datetime(df[time_col], errors='coerce')
             time_series = df.dropna(subset=[time_col]).sort_values(time_col)
 
-            # Randomly select a numeric column
+            # Randomly select numeric columns until a valid one is found
             while numeric_cols:
                 numeric_col = random.choice(numeric_cols)
 
-                # Check if the column is valid
+                # Skip the column if it contains only NaN values
                 if time_series[numeric_col].isnull().all():
                     print(f"Column {numeric_col} contains only NaN values. Selecting another column...")
                     numeric_cols.remove(numeric_col)
                     continue
 
+                # Skip the column if it is identical to the time-related column
                 if time_series[numeric_col].equals(time_series[time_col]):
                     print(f"Column {numeric_col} is identical to {time_col}. Selecting another column...")
                     numeric_cols.remove(numeric_col)
                     continue
 
-                # If a valid column is found, perform analysis
+                # Forward-fill and backward-fill missing values in the numeric column
                 series_data = time_series[numeric_col].ffill().bfill()
 
-                # Create and save plot
+                # Create and save a time series plot
                 try:
                     plt.figure(figsize=(12, 6))
                     plt.plot(time_series[time_col], series_data)
@@ -559,21 +585,25 @@ def time_series_analysis(df):
                     plt.grid(True)
                     plt.tight_layout()
 
+                    # Generate a safe filename for the plot
                     safe_filename = f"timeseries_{time_col}_{numeric_col}".replace(" ", "_").replace("/", "_")
                     plt.savefig(f"{safe_filename}.png")
                     plt.close()
 
                 except Exception as plot_error:
+                    # Handle errors during plot creation
                     print(f"Error creating plot for {numeric_col} over {time_col}: {plot_error}")
                     return None
 
-                # Perform ADF test
+                # Perform the Augmented Dickey-Fuller (ADF) test for stationarity
                 try:
                     adf_result = adfuller(series_data.dropna())
                     adf_stat, p_value, _, _, critical_values, _ = adf_result
 
+                    # Interpret the results of the ADF test
                     stationarity_result = test_stationarity(p_value)
 
+                    # Store the results in the dictionary
                     hypothesis_results[f"{numeric_col}_{time_col}"] = {
                         "column": numeric_col,
                         "time_reference": time_col,
@@ -585,18 +615,20 @@ def time_series_analysis(df):
                     break  # Exit the loop once a valid column is processed
 
                 except Exception as adf_error:
+                    # Handle errors during the ADF test
                     print(f"Error performing ADF test for {numeric_col}: {adf_error}")
                     return None
 
-            # Exit time_col loop once a valid numeric column is processed
+            # Exit the outer loop once a valid numeric column is processed
             if hypothesis_results:
                 break
 
         except Exception as e:
+            # Log errors related to processing the time column
             logger.error(f"Error processing time column {time_col}: {str(e)}")
             continue
 
-    end = time.time()
+    end = time.time()  # End timing the function execution
     print("Time series analysis completed in", end - start, "seconds.")
     return hypothesis_results
 
@@ -628,7 +660,7 @@ def dynamic_analysis_prompt(df: pd.DataFrame, basic_info: Dict, cluster,hypothes
         Numerical Analysis:
         - Identify key statistical patterns and relationships
         - Analyze distribution shapes and outliers
-        - Examine correlations between numeric variables
+        
         """)
         
     if categorical_cols:
@@ -636,13 +668,12 @@ def dynamic_analysis_prompt(df: pd.DataFrame, basic_info: Dict, cluster,hypothes
         Categorical Analysis:
         - Analyze frequency distributions
         - Identify important category combinations
-        - Examine relationships with numeric variables
+        
         """)
         
     if any(missing_values.values()):
         sections.append("""
         Missing Data Analysis:
-        - Assess impact of missing values
         - Identify patterns in missing data
         - Recommend handling strategies
         """)
@@ -651,15 +682,13 @@ def dynamic_analysis_prompt(df: pd.DataFrame, basic_info: Dict, cluster,hypothes
         sections.append("""
         Large Dataset Considerations:
         - Focus on key trends and patterns
-        - Identify significant subgroups
         - Recommend sampling strategies if needed
         """)
     
     if clusters:
         sections.append(f"""
         Cluster Analysis:
-        - Identify clusters based on {cluster}
-        - Analyze relationships between {clusters}
+        - Analyze relationships between {clusters} cluster
         - Explore cluster profiles and make recommendations
         """)
     
@@ -667,22 +696,18 @@ def dynamic_analysis_prompt(df: pd.DataFrame, basic_info: Dict, cluster,hypothes
         sections.append(f"""
         Hypothesis Testing:
         - Hypothesis Results: {hypo}
-        - Determine if the hypothesis is supported by the data
         - Provide recommendations for further investigation
         """)
     
     # Combine sections into final prompt
     prompt = f"""
     Analyze this dataset with {num_rows} rows considering:
-    
     {' '.join(sections)}
-    
     Provide:
     1. Key insights and patterns
     2. Potential issues or limitations
     3. Specific recommendations for action for stakeholders
-    4. Areas for further investigatio
-    5. Refrences for findings
+    4. Areas for further investigation
     """
     
     return prompt
@@ -729,7 +754,6 @@ def initial_analyse(csv_file,stats,sample,outlier,prompt):
 
     Focus on concrete, observations and avoid generic statements.
     Support each finding with specific numbers or examples from the data.
-    Highlight practical implications rather than just statistical facts.
     """
         }
 
@@ -785,18 +809,18 @@ def generate_python_code(csv_file,stats):
             Given the dataset details below:
             Filename: {csv_file}
             Numeric Columns : {numeric_cols}
-            Generate Python code to perform **one task** from the following:
+            Generate Python code to perform **1 task** from:
             {', '.join(analysis_tasks)}
 
             Code requirements:
-            1. Perform the task and create **one supporting visualization** (saved as *.PNG).
+            1. Perform the task and create 1 supporting visualization (saved as *.PNG).
             2. Use `df['col'] = df['col'].method()` instead of inplace methods.
             3. Restrict libraries to pandas, numpy,matplotlib, and sklearn.
-            4. Handle missing values: fill numeric columns with medians, categorical with the most frequent value.
-            5. Optimize for lower-spec systems: keep iterations or epochs low.
+            4. Handle missing values: fill numeric columns with medians
+            5. Optimize for lower-spec systems: keep iterations or epochs very low
             6. Read the file with `encoding='unicode_escape'`.
             7. Work **only with numerical variables** for analysis and visualization.
-            8. MOST IMPORTANT: Be directly executable via the exec() method
+            8. Be directly executable via the exec() method
             
             Do not include any markdown or explanatory text, DO NOT EVEN ADD ```python at the beginning of your response.Provide pure Python code only.
             """
@@ -867,12 +891,10 @@ def analyze_plot(image_path: str, analysis_type: str) -> Optional[str]:
             "content": [
                 {
                     "type": "text",
-                    "text": f"""Perform detailed {analysis_type} analysis on the following visualization.
-                    Create a cohesive narrative that:
-                    1. Flows naturally between different visualization types
-                    2. Highlights relationships between findings
-                    3. Emphasizes practical implications
-                    4. Provides clear, actionable insights
+                    "text": f"""Perform short (30-40 words) {analysis_type} analysis on the following visualization that:                    
+                    1. Highlights relationships between findings
+                    2. Specify numbers wherever appropriate
+                    3. Provides clear, actionable insights
                     """
                 },
                 {
@@ -950,7 +972,7 @@ def dynamic_clustering_decision(df: pd.DataFrame, basic_info: Dict) -> bool:
             memory_usage < MAX_MEMORY)
 
 
-def process_dataset(df: pd.DataFrame) -> Tuple[Dict, Dict, Dict, Optional[int], Optional[Dict]]:
+def process_dataset(df):
     """
     Process dataset and generate various analyses.
     
@@ -975,114 +997,158 @@ def process_dataset(df: pd.DataFrame) -> Tuple[Dict, Dict, Dict, Optional[int], 
     return basic_stats, sample_values, outliers, clusters, hypothesis
 
 
+def perform_analysis(csv_file: str) -> tuple:
+    """
+    Performs all analysis steps on the input CSV file.
+    
+    Args:
+        csv_file (str): Path to input CSV file
+        
+    Returns:
+        tuple: (initial_analysis, generated_code, vision_analysis_results)
+    """
+    # Validate input file
+    if not os.path.exists(csv_file):
+        raise FileNotFoundError(f"File '{csv_file}' does not exist")
+
+    # Read and process dataset
+    df = pd.read_csv(csv_file, encoding='unicode_escape')
+    basic_stats, sample_values, outliers, clusters, hypothesis = process_dataset(df)
+
+    # Generate analyses
+    analysis_prompt = dynamic_analysis_prompt(df, basic_stats, clusters, hypothesis)
+    initial_analysis = initial_analyse(csv_file, basic_stats, sample_values, outliers, analysis_prompt)
+    generated_code = generate_python_code(csv_file, basic_stats)
+
+    # Execute generated code and analyze plots
+    run_generated_code(generated_code)  # Run code but don't capture output
+    vision_analysis_results = generate_plot_summaries()
+
+    return initial_analysis, generated_code, vision_analysis_results
+
+def create_dynamic_prompt() -> str:
+    """
+    Creates a dynamic prompt based on the presence of PNG files and generated code.
+    
+    Returns:
+        str: The customized prompt
+    """
+    current_directory = os.getcwd()
+    png_files = [f for f in os.listdir(current_directory) if f.endswith('.png')]
+    
+    base_prompt = """
+    Create a comprehensive README.md that contains:
+
+    1. Introduction to Dataset and Analysis Methods
+       - Introduction of Dataset
+       - Dataset Overview and Descriptions
+       - Key characteristics and quality metrics
+    """
+    
+    # Add Analysis & Findings section if PNG files exist
+    if return_none(png_files):
+        base_prompt += f"""
+    2. Analysis & Findings
+       - Statistical patterns and findings
+       - Add plots present in {png_files} with same file names and their respective results & interpretations.
+       - Analytics results from clustering, time series, etc techniques
+    """
+
+    # Always include Implications & Recommendations and Conclusion
+    base_prompt += """
+    3. Data Insight & Technical Details
+           - Insights reveleaded through different analysis methods
+           - Generated code explanation and purpose
+           - Methodology and approach
+
+    4. Implications & Recommendations
+       - Implications of working with this data
+       - Action items by stakeholder group
+       - Areas for further investigation
+
+    5. Conclusion
+       - Summary of key findings
+       - Next steps
+
+    Do not add ```markdown at the beginning of markdown in readme.md.
+    Ensure smooth transitions between sections.
+    """
+    
+    return base_prompt
+
+def generate_readme(initial_analysis: str, generated_code: str, vision_analysis_results: str) -> None:
+    """
+    Generates README.md using function calling and the analysis results.
+    
+    Args:
+        initial_analysis (str): Initial analysis results
+        generated_code (str): Generated Python code
+        vision_analysis_results (str): Results from vision analysis
+    """
+    function_calling = [
+        {
+            "name": "final_narration",
+            "description": "Integrate all analyses into a cohesive narrative",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "initial_analysis": {"type": "string"},
+                    "vision_analysis": {"type": "string"},
+                    "generated_code_for_analysis": {"type": "string"}
+                },
+                "required": ["initial_analysis", "vision_analysis", "generated_code_for_analysis"]
+            }
+        }
+    ]
+
+    final_prompt = create_dynamic_prompt()
+
+    final_response = llm_req(
+        [
+            {"role": "user", "content": final_prompt},
+            {
+                "role": "function", 
+                "name": "final_narration", 
+                "content": json.dumps({
+                    "initial_analysis": initial_analysis,
+                    "generated_code_for_analysis": generated_code,
+                    "vision_analysis": vision_analysis_results
+                })
+            }
+        ],
+        functions=function_calling
+    )
+
+    if not final_response:
+        raise RuntimeError("Failed to generate final response")
+
+    # Write README
+    with open('README.md', 'w') as f:
+        f.write(final_response['choices'][0]['message']['content'])
+
 def main(csv_file: str) -> None:
     """
     Main function orchestrating the data analysis pipeline.
-    
+
     Args:
         csv_file (str): Path to input CSV file
     """
     try:
         logger.info("Starting analysis pipeline")
         start_time = time.time()
-        
-        # Validate input file
-        if not os.path.exists(csv_file):
-            raise FileNotFoundError(f"File '{csv_file}' does not exist")
-            
-        # Read and process dataset
-        df = pd.read_csv(csv_file, encoding='unicode_escape')
-        basic_stats, sample_values, outliers, clusters, hypothesis = process_dataset(df)
-        
-        # Generate analyses
-        analysis_prompt = dynamic_analysis_prompt(df, basic_stats,clusters, hypothesis)
-        initial_analysis = initial_analyse(csv_file, basic_stats, sample_values, outliers, analysis_prompt)
-        generated_code = generate_python_code(csv_file, basic_stats)
-        
-        # Execute generated code and analyze plots
-        vision_analysis_results = generate_plot_summaries()
-        run_generated_code(generated_code)
-        current_directory = os.getcwd()
-        png_files = [f for f in os.listdir(current_directory) if f.endswith('.png')]
-        
-        # Generate final narrative
-        function_calling = [
-            {
-                "name": "final_narration",
-                "description": "Integrate all analyses into a cohesive narrative",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "initial_analysis": {"type": "string"},
-                        "vision_analysis": {"type": "string"},
-                        "generated_code_for_analysis": {"type": "string"}
-                    },
-                    "required": ["initial_analysis", "vision_analysis", "generated_code_for_analysis"]
-                }
-            }
-        ]
-        
-        final_prompt = f"""
-        Create a comprehensive README.md in a narrative storytelling fashion that contains:
-        
-        1. Introduction to Dataset and Analysis Methods
-           - Introduction of Dataset
-           - Dataset Overview and Descriptions
-           - Key characteristics and quality metrics
-           
-        2. Analysis & Findings
-           - Statistical patterns and findings
-           - Add plots present in {png_files} with same file names and respective interpretations.
-           - Visual analysis results with clear references to plots
-           - Advanced analytics results (clustering, time series, etc.)
-           
-        3. Data Insight & Technical Details
-           - Insights reveleaded through different analysis methods
-           - Generated code explanation and purpose
-           - Methodology and approach
-           
-        4. Implications & Recommendations
-           - Implications of working with this data
-           - Business implications
-           - Action items by stakeholder group
-           - Areas for further investigation
-           
-        5. Conclusion
-           - Summary of key findings
-           - Next steps
-        
-        Do not add ```markdown at the beginning of markdown in readme.md.
-        Ensure smooth transitions between sections.
-        """
-        
-        final_response = llm_req(
-            [
-                {"role": "user", "content": final_prompt},
-                {
-                    "role": "function", 
-                    "name": "final_narration", 
-                    "content": json.dumps({
-                        "initial_analysis": initial_analysis,
-                        "generated_code_for_analysis": generated_code,
-                        "vision_analysis": vision_analysis_results
-                    })
-                }
-            ],
-            functions=function_calling
-        )
-        
-        if not final_response:
-            raise RuntimeError("Failed to generate final response")
-            
-        # Write README
-        with open('README.md', 'w') as f:
-            f.write(final_response['choices'][0]['message']['content'])
-            
+
+        # Step 1: Perform all analyses
+        initial_analysis, generated_code, vision_analysis_results = perform_analysis(csv_file)
+
+        # Step 2 & 3: Generate README with dynamic prompt and function calling
+        generate_readme(initial_analysis, generated_code, vision_analysis_results)
+
         logger.info(f"Analysis complete in {time.time() - start_time:.2f} seconds")
-        
+
     except Exception as e:
         logger.error(f"Error in main function: {e}")
         raise
+
 
 
 if __name__ == "__main__":
@@ -1091,7 +1157,3 @@ if __name__ == "__main__":
         sys.exit(1)
     
     main(sys.argv[1])
-    
-    
-    
-
