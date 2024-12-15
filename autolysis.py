@@ -6,7 +6,7 @@
 #   "matplotlib",
 #   "numpy",
 #   "pandas",
-#   "base64",
+#   "pybase64",
 #   "concurrent",
 #   "tenacity",
 #   "Pillow",
