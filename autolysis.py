@@ -46,7 +46,7 @@ def llm_req(message, functions=None, stream=False):
         
         headers = {
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {os.environ.get('OPENAI_API_KEY')}"
+            "Authorization": f"Bearer {os.environ.get('AIPROXY_TOKEN')}"
         }
 
         data = {
@@ -59,8 +59,8 @@ def llm_req(message, functions=None, stream=False):
             data["functions"] = functions
 
         response = requests.post(
-            # "https://aiproxy.sanand.workers.dev/openai/v1/chat/completions", 
-            "https://api.openai.com/v1/chat/completions",
+            "https://aiproxy.sanand.workers.dev/openai/v1/chat/completions", 
+            # "https://api.openai.com/v1/chat/completions",
             headers=headers, 
             json=data,
             timeout=60
