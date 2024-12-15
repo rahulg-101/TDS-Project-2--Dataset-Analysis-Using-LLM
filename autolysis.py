@@ -9,6 +9,7 @@
 #   "pybase64",
 #   "tenacity",
 #   "Pillow",
+#   "python-dotenv",
 # ]
 # ///
 
