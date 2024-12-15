@@ -1,3 +1,23 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = [
+#   "requests",
+#   "seaborn",
+#   "matplotlib",
+#   "numpy",
+#   "pandas",
+#   "base64",
+#   "concurrent",
+#   "tenacity",
+#   "Pillow",
+#   "time",
+#   "typing",
+#   "logging",
+# ]
+# ///
+
+
+
 import os
 import pandas as pd
 import seaborn as sns
