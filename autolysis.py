@@ -65,7 +65,7 @@ def llm_req(message, functions=None, stream=False):
         
         headers = {
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {os.environ.get('AIPROXY_TOKEN')}"
+            "Authorization": f"Bearer {os.environ.get('OPENAI_API_KEY')}"
         }
 
         data = {
@@ -78,8 +78,8 @@ def llm_req(message, functions=None, stream=False):
             data["functions"] = functions
 
         response = requests.post(
-            "https://aiproxy.sanand.workers.dev/openai/v1/chat/completions", 
-            # "https://api.openai.com/v1/chat/completions",
+            # "https://aiproxy.sanand.workers.dev/openai/v1/chat/completions", 
+            "https://api.openai.com/v1/chat/completions",
             headers=headers, 
             json=data,
             timeout=60
@@ -600,7 +600,7 @@ def time_series_analysis(df):
     print("Time series analysis completed in", end - start, "seconds.")
     return hypothesis_results
 
-def generate_dynamic_analysis_prompt(df: pd.DataFrame, basic_info: Dict, cluster,hypothesis) -> str:
+def dynamic_analysis_prompt(df: pd.DataFrame, basic_info: Dict, cluster,hypothesis) -> str:
     """
     Generate a dataset-specific analysis prompt based on characteristics.
     
@@ -952,7 +952,7 @@ def consolidate_summaries(vision_analysis_results: Dict[str, str]) -> str:
     print("For Consolidated visualization summary: ",end-start)
     return response['choices'][0]['message']['content'] if response else "Error consolidating insights."
     
-def should_perform_clustering(df: pd.DataFrame, basic_info: Dict) -> bool:
+def dynamic_clustering_decision(df: pd.DataFrame, basic_info: Dict) -> bool:
     """
     Determine if clustering should be performed based on dataset characteristics.
     
@@ -994,7 +994,7 @@ def process_dataset(df: pd.DataFrame) -> Tuple[Dict, Dict, Dict, Optional[int], 
     distribution_plots(df)
     
     clusters = None
-    if should_perform_clustering(df, basic_stats):
+    if dynamic_clustering_decision(df, basic_stats):
         clusters = clustering(df, basic_stats)
         
     hypothesis = time_series_analysis(df)
@@ -1022,14 +1022,14 @@ def main(csv_file: str) -> None:
         basic_stats, sample_values, outliers, clusters, hypothesis = process_dataset(df)
         
         # Generate analyses
-        analysis_prompt = generate_dynamic_analysis_prompt(df, basic_stats,clusters, hypothesis)
+        analysis_prompt = dynamic_analysis_prompt(df, basic_stats,clusters, hypothesis)
         initial_analysis = initial_analyse(csv_file, basic_stats, sample_values, outliers, analysis_prompt)
         generated_code = generate_python_code(csv_file, basic_stats)
         
         # Execute generated code and analyze plots
-        run_generated_code(generated_code)
         vision_analysis_results = generate_plot_summaries()
         consolidated_vision_analysis = consolidate_summaries(vision_analysis_results)
+        run_generated_code(generated_code)
         current_directory = os.getcwd()
         png_files = [f for f in os.listdir(current_directory) if f.endswith('.png')]
         
