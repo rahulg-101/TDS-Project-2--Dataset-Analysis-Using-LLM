@@ -891,7 +891,7 @@ def analyze_plot(image_path: str, analysis_type: str) -> Optional[str]:
             "content": [
                 {
                     "type": "text",
-                    "text": f"""Perform short (30-40 words) {analysis_type} analysis on the following visualization that:                    
+                    "text": f"""Perform short {analysis_type} analysis on the following visualization that:                    
                     1. Highlights relationships between findings
                     2. Specify numbers wherever appropriate
                     3. Provides clear, actionable insights
