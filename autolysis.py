@@ -7,12 +7,8 @@
 #   "numpy",
 #   "pandas",
 #   "pybase64",
-#   "concurrent",
 #   "tenacity",
 #   "Pillow",
-#   "time",
-#   "typing",
-#   "logging",
 # ]
 # ///
 
