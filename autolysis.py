@@ -10,6 +10,8 @@
 #   "tenacity",
 #   "Pillow",
 #   "python-dotenv",
+#   "statsmodels",
+#   "scikit-learn",
 # ]
 # ///
 
